@@ -212,16 +212,15 @@ router.get('/stats/overview', async (req, res) => {
       LIMIT 5
     `);
 
-    // Get debt summary
+    // Get debt summary - simplified for PostgreSQL compatibility
     const debtSummary = await allQuery(`
       SELECT 
         p.name,
         COALESCE(SUM(CASE WHEN s.from_player_id = p.id THEN -s.amount ELSE s.amount END), 0) as net_debt
       FROM players p
-      LEFT JOIN settlements s ON p.id = s.from_player_id OR p.id = s.to_player_id
+      LEFT JOIN settlements s ON (p.id = s.from_player_id OR p.id = s.to_player_id)
       GROUP BY p.id, p.name
-      HAVING COALESCE(SUM(CASE WHEN s.from_player_id = p.id THEN -s.amount ELSE s.amount END), 0) != 0
-      ORDER BY ABS(COALESCE(SUM(CASE WHEN s.from_player_id = p.id THEN -s.amount ELSE s.amount END), 0)) DESC
+      ORDER BY p.name
     `);
 
     res.json({ ...stats, recentSettlements, debtSummary });
