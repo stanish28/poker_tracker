@@ -94,7 +94,7 @@ const PlayerSelector: React.FC<PlayerSelectorProps> = ({
                         {player.name}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {player.total_games} games • Net: ${parseFloat(player.net_profit || 0).toFixed(2)}
+                        {player.total_games} games • Net: ${parseFloat(player.net_profit || '0').toFixed(2)}
                       </div>
                     </div>
                     {selectedPlayerIds.includes(player.id) && (
