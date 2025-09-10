@@ -120,7 +120,7 @@ router.post('/', [
           total_games = total_games + 1,
           total_buyins = total_buyins + ?,
           total_cashouts = total_cashouts + ?,
-          updated_at = CURRENT_TIMESTAMP
+          updated_at = NOW()
         WHERE id = ?
       `, [profit, player.buyin, player.cashout, player.player_id]);
     }
@@ -226,7 +226,7 @@ router.delete('/:id', async (req, res) => {
           total_games = total_games - 1,
           total_buyins = total_buyins - ?,
           total_cashouts = total_cashouts - ?,
-          updated_at = CURRENT_TIMESTAMP
+          updated_at = NOW()
         WHERE id = ?
       `, [player.profit, player.buyin, player.cashout, player.player_id]);
     }
@@ -247,7 +247,7 @@ router.get('/stats/overview', async (req, res) => {
     const stats = await getQuery(`
       SELECT 
         COUNT(*) as total_games,
-        SUM(CASE WHEN is_completed = 1 THEN 1 ELSE 0 END) as completed_games,
+        SUM(CASE WHEN is_completed = TRUE THEN 1 ELSE 0 END) as completed_games,
         SUM(total_buyins) as total_buyins,
         SUM(total_cashouts) as total_cashouts,
         AVG(discrepancy) as avg_discrepancy,

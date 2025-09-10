@@ -113,7 +113,7 @@ router.put('/:id', [
     }
 
     await runQuery(
-      'UPDATE players SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE players SET name = ?, updated_at = NOW() WHERE id = ?',
       [name, playerId]
     );
 
@@ -198,7 +198,7 @@ router.get('/:id/stats', async (req, res) => {
       SELECT gp.profit
       FROM game_players gp
       JOIN games g ON gp.game_id = g.id
-      WHERE gp.player_id = ? AND g.is_completed = 1
+      WHERE gp.player_id = ? AND g.is_completed = TRUE
       ORDER BY g.date DESC
     `, [playerId]);
 

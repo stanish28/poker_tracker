@@ -218,17 +218,29 @@ class DatabaseAdapter {
     this.isInitialized = true;
   }
 
+  convertSqlToPostgres(sql) {
+    // Convert SQLite syntax to PostgreSQL
+    let paramCount = 0;
+    let pgSql = sql.replace(/\?/g, () => {
+      paramCount++;
+      return `$${paramCount}`;
+    });
+    
+    // Convert SQLite boolean syntax to PostgreSQL
+    pgSql = pgSql.replace(/= 1/g, '= TRUE');
+    pgSql = pgSql.replace(/= 0/g, '= FALSE');
+    
+    // Convert timestamp functions
+    pgSql = pgSql.replace(/CURRENT_TIMESTAMP/g, 'NOW()');
+    
+    return pgSql;
+  }
+
   async runQuery(sql, params = []) {
     if (this.isPostgres) {
       const client = await this.pool.connect();
       try {
-        // Convert SQLite syntax to PostgreSQL
-        let paramCount = 0;
-        let pgSql = sql.replace(/\?/g, () => {
-          paramCount++;
-          return `$${paramCount}`;
-        });
-        
+        const pgSql = this.convertSqlToPostgres(sql);
         const result = await client.query(pgSql, params);
         return { id: result.rows[0]?.id, changes: result.rowCount };
       } finally {
@@ -251,13 +263,7 @@ class DatabaseAdapter {
     if (this.isPostgres) {
       const client = await this.pool.connect();
       try {
-        // Convert SQLite syntax to PostgreSQL
-        let paramCount = 0;
-        let pgSql = sql.replace(/\?/g, () => {
-          paramCount++;
-          return `$${paramCount}`;
-        });
-        
+        const pgSql = this.convertSqlToPostgres(sql);
         const result = await client.query(pgSql, params);
         return result.rows[0] || null;
       } finally {
@@ -280,13 +286,7 @@ class DatabaseAdapter {
     if (this.isPostgres) {
       const client = await this.pool.connect();
       try {
-        // Convert SQLite syntax to PostgreSQL
-        let paramCount = 0;
-        let pgSql = sql.replace(/\?/g, () => {
-          paramCount++;
-          return `$${paramCount}`;
-        });
-        
+        const pgSql = this.convertSqlToPostgres(sql);
         const result = await client.query(pgSql, params);
         return result.rows;
       } finally {
