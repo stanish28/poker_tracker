@@ -259,6 +259,9 @@ const Players: React.FC = () => {
                           <span className="text-xs text-blue-600">Settlements</span>
                           <span className="text-xs text-gray-600">{playerNetProfits[player.id].settlements_count} transactions</span>
                         </div>
+                        <div className="text-xs text-blue-500 mt-1">
+                          💡 Settlements reduce net profit (money paid out)
+                        </div>
                       </div>
                     )}
 
