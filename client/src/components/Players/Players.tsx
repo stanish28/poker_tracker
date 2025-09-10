@@ -13,6 +13,12 @@ const Players: React.FC = () => {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
+  const [playerNetProfits, setPlayerNetProfits] = useState<Record<string, {
+    game_net_profit: number;
+    settlement_impact: number;
+    true_net_profit: number;
+    settlements_count: number;
+  }>>({});
 
   useEffect(() => {
     fetchPlayers();
@@ -24,6 +30,25 @@ const Players: React.FC = () => {
       setError(null);
       const data = await apiService.getPlayers();
       setPlayers(data);
+      
+      // Fetch true net profit for each player
+      const netProfitData: Record<string, any> = {};
+      for (const player of data) {
+        try {
+          const netProfit = await apiService.getPlayerNetProfit(player.id);
+          netProfitData[player.id] = netProfit;
+        } catch (err) {
+          console.error(`Failed to fetch net profit for player ${player.id}:`, err);
+          // Fallback to game net profit if settlement data fails
+          netProfitData[player.id] = {
+            game_net_profit: parseFloat(String(player.net_profit || 0)),
+            settlement_impact: 0,
+            true_net_profit: parseFloat(String(player.net_profit || 0)),
+            settlements_count: 0
+          };
+        }
+      }
+      setPlayerNetProfits(netProfitData);
     } catch (err) {
       setError('Failed to load players');
       console.error('Players error:', err);
@@ -123,6 +148,11 @@ const Players: React.FC = () => {
     return null;
   };
 
+  const getTrueNetProfit = (playerId: string) => {
+    const netProfitData = playerNetProfits[playerId];
+    return netProfitData ? netProfitData.true_net_profit : parseFloat(String(players.find(p => p.id === playerId)?.net_profit || 0));
+  };
+
   if (isLoading) {
     return <LoadingSpinner size="lg" text="Loading players..." />;
   }
@@ -206,12 +236,31 @@ const Players: React.FC = () => {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Net Profit</span>
-                      <div className={`flex items-center space-x-1 ${getProfitColor(player.net_profit)}`}>
-                        {getProfitIcon(player.net_profit)}
-                        <span className="font-medium">{formatCurrency(player.net_profit)}</span>
+                      <span className="text-sm text-gray-600">True Net Profit</span>
+                      <div className={`flex items-center space-x-1 ${getProfitColor(getTrueNetProfit(player.id))}`}>
+                        {getProfitIcon(getTrueNetProfit(player.id))}
+                        <span className="font-medium">{formatCurrency(getTrueNetProfit(player.id))}</span>
                       </div>
                     </div>
+
+                    {playerNetProfits[player.id] && playerNetProfits[player.id].settlements_count > 0 && (
+                      <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-blue-700 font-medium">Settlement Impact</span>
+                          <span className={`text-sm font-medium ${getProfitColor(playerNetProfits[player.id].settlement_impact)}`}>
+                            {formatCurrency(playerNetProfits[player.id].settlement_impact)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-blue-600">Game Net Profit</span>
+                          <span className="text-xs text-gray-600">{formatCurrency(playerNetProfits[player.id].game_net_profit)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-blue-600">Settlements</span>
+                          <span className="text-xs text-gray-600">{playerNetProfits[player.id].settlements_count} transactions</span>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Total Games</span>
@@ -260,9 +309,9 @@ const Players: React.FC = () => {
                             {player.total_games} games
                           </span>
                         </div>
-                        <div className={`flex items-center space-x-1 ${getProfitColor(player.net_profit)}`}>
-                          {getProfitIcon(player.net_profit)}
-                          <span className="font-bold">{formatCurrency(player.net_profit)}</span>
+                        <div className={`flex items-center space-x-1 ${getProfitColor(getTrueNetProfit(player.id))}`}>
+                          {getProfitIcon(getTrueNetProfit(player.id))}
+                          <span className="font-bold">{formatCurrency(getTrueNetProfit(player.id))}</span>
                         </div>
                       </div>
                     </div>

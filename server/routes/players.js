@@ -230,4 +230,58 @@ router.get('/:id/stats', async (req, res) => {
   }
 });
 
+// Get player net profit including settlements
+router.get('/:id/net-profit', async (req, res) => {
+  try {
+    const playerId = req.params.id;
+
+    // Get basic player info
+    const player = await getQuery(`
+      SELECT 
+        id, name, net_profit, total_games, total_buyins, total_cashouts
+      FROM players 
+      WHERE id = ?
+    `, [playerId]);
+
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    // Get settlements where this player is involved
+    const settlements = await allQuery(`
+      SELECT 
+        from_player_id, to_player_id, amount
+      FROM settlements 
+      WHERE from_player_id = ? OR to_player_id = ?
+      ORDER BY created_at DESC
+    `, [playerId, playerId]);
+
+    // Calculate settlement impact
+    let settlementImpact = 0;
+    for (const settlement of settlements) {
+      if (settlement.from_player_id === playerId) {
+        // Player paid out money (negative impact)
+        settlementImpact -= parseFloat(settlement.amount);
+      } else if (settlement.to_player_id === playerId) {
+        // Player received money (positive impact)
+        settlementImpact += parseFloat(settlement.amount);
+      }
+    }
+
+    // Calculate true net profit (game profits + settlement impact)
+    const trueNetProfit = parseFloat(player.net_profit || 0) + settlementImpact;
+
+    res.json({
+      player_id: playerId,
+      game_net_profit: parseFloat(player.net_profit || 0),
+      settlement_impact: settlementImpact,
+      true_net_profit: trueNetProfit,
+      settlements_count: settlements.length
+    });
+  } catch (error) {
+    console.error('Error calculating net profit with settlements:', error);
+    res.status(500).json({ error: 'Failed to calculate net profit' });
+  }
+});
+
 module.exports = router;

@@ -14,6 +14,12 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [playerNetProfits, setPlayerNetProfits] = useState<Record<string, {
+    game_net_profit: number;
+    settlement_impact: number;
+    true_net_profit: number;
+    settlements_count: number;
+  }>>({});
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -28,6 +34,25 @@ const Dashboard: React.FC = () => {
           apiService.getGameStats(),
           apiService.getSettlementStats()
         ]);
+
+        // Fetch true net profit for each player
+        const netProfitData: Record<string, any> = {};
+        for (const player of players) {
+          try {
+            const netProfit = await apiService.getPlayerNetProfit(player.id);
+            netProfitData[player.id] = netProfit;
+          } catch (err) {
+            console.error(`Failed to fetch net profit for player ${player.id}:`, err);
+            // Fallback to game net profit if settlement data fails
+            netProfitData[player.id] = {
+              game_net_profit: parseFloat(String(player.net_profit || 0)),
+              settlement_impact: 0,
+              true_net_profit: parseFloat(String(player.net_profit || 0)),
+              settlements_count: 0
+            };
+          }
+        }
+        setPlayerNetProfits(netProfitData);
 
         const totalVolume = parseFloat(String(gameStats.total_buyins || 0)) + parseFloat(String(settlementStats.total_amount || 0));
         
