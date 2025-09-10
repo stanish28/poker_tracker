@@ -223,9 +223,10 @@ class DatabaseAdapter {
       const client = await this.pool.connect();
       try {
         // Convert SQLite syntax to PostgreSQL
-        let pgSql = sql.replace(/\?/g, (match, offset) => {
-          const paramIndex = sql.substring(0, offset).split('?').length;
-          return `$${paramIndex}`;
+        let paramCount = 0;
+        let pgSql = sql.replace(/\?/g, () => {
+          paramCount++;
+          return `$${paramCount}`;
         });
         
         const result = await client.query(pgSql, params);
@@ -251,9 +252,10 @@ class DatabaseAdapter {
       const client = await this.pool.connect();
       try {
         // Convert SQLite syntax to PostgreSQL
-        let pgSql = sql.replace(/\?/g, (match, offset) => {
-          const paramIndex = sql.substring(0, offset).split('?').length;
-          return `$${paramIndex}`;
+        let paramCount = 0;
+        let pgSql = sql.replace(/\?/g, () => {
+          paramCount++;
+          return `$${paramCount}`;
         });
         
         const result = await client.query(pgSql, params);
@@ -279,9 +281,10 @@ class DatabaseAdapter {
       const client = await this.pool.connect();
       try {
         // Convert SQLite syntax to PostgreSQL
-        let pgSql = sql.replace(/\?/g, (match, offset) => {
-          const paramIndex = sql.substring(0, offset).split('?').length;
-          return `$${paramIndex}`;
+        let paramCount = 0;
+        let pgSql = sql.replace(/\?/g, () => {
+          paramCount++;
+          return `$${paramCount}`;
         });
         
         const result = await client.query(pgSql, params);
