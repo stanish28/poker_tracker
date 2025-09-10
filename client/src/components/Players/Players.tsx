@@ -50,8 +50,13 @@ const Players: React.FC = () => {
     try {
       await apiService.deletePlayer(player.id);
       setPlayers(prev => prev.filter(p => p.id !== player.id));
-    } catch (err) {
-      setError('Failed to delete player');
+      setError(null); // Clear any previous errors
+    } catch (err: any) {
+      if (err.message?.includes('game records')) {
+        setError(`Cannot delete ${player.name} - they have game records. Remove them from all games first, or keep the player for historical data.`);
+      } else {
+        setError('Failed to delete player');
+      }
       console.error('Delete player error:', err);
     }
   };
