@@ -241,6 +241,97 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Add player to existing game
+router.post('/:gameId/players', [
+  body('player_id').notEmpty().withMessage('Player ID is required'),
+  body('buyin').isNumeric().withMessage('Buy-in must be a number'),
+  body('cashout').isNumeric().withMessage('Cash-out must be a number')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { gameId } = req.params;
+    const { player_id, buyin, cashout } = req.body;
+    const profit = cashout - buyin;
+
+    // Check if game exists
+    const existingGame = await getQuery('SELECT id FROM games WHERE id = ?', [gameId]);
+    if (!existingGame) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    // Check if player exists
+    const existingPlayer = await getQuery('SELECT id, name FROM players WHERE id = ?', [player_id]);
+    if (!existingPlayer) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    // Check if player is already in this game
+    const existingGamePlayer = await getQuery(
+      'SELECT id FROM game_players WHERE game_id = ? AND player_id = ?',
+      [gameId, player_id]
+    );
+
+    if (existingGamePlayer) {
+      return res.status(400).json({ error: 'Player is already in this game' });
+    }
+
+    // Add player to game
+    const gamePlayerId = uuidv4();
+    await runQuery(`
+      INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [gamePlayerId, gameId, player_id, buyin, cashout, profit]);
+
+    // Update player statistics
+    await runQuery(`
+      UPDATE players 
+      SET 
+        net_profit = net_profit + ?,
+        total_games = total_games + 1,
+        total_buyins = total_buyins + ?,
+        total_cashouts = total_cashouts + ?,
+        updated_at = NOW()
+      WHERE id = ?
+    `, [profit, buyin, cashout, player_id]);
+
+    // Recalculate and update game totals
+    const gameTotals = await getQuery(`
+      SELECT 
+        SUM(buyin) as total_buyins,
+        SUM(cashout) as total_cashouts
+      FROM game_players 
+      WHERE game_id = ?
+    `, [gameId]);
+
+    const discrepancy = gameTotals.total_cashouts - gameTotals.total_buyins;
+
+    await runQuery(`
+      UPDATE games 
+      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = NOW()
+      WHERE id = ?
+    `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
+
+    res.json({ 
+      message: 'Player added to game successfully',
+      player: {
+        id: gamePlayerId,
+        player_id,
+        player_name: existingPlayer.name,
+        buyin,
+        cashout,
+        profit
+      }
+    });
+  } catch (error) {
+    console.error('Error adding player to game:', error);
+    res.status(500).json({ error: 'Failed to add player to game' });
+  }
+});
+
 // Update game player amounts
 router.put('/:gameId/players/:playerId', [
   body('buyin').isNumeric().withMessage('Buy-in must be a number'),

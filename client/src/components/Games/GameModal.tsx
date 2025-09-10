@@ -119,8 +119,42 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         // First update the game date
         await apiService.updateGame(game.id, { date: formData.date });
         
-        // Then update each player's amounts using the new endpoint
-        for (const gamePlayer of formData.players) {
+        // Get current game players to determine what changed
+        const currentGameDetails = await apiService.getGame(game.id);
+        const currentPlayerIds = currentGameDetails.players.map(p => p.player_id);
+        const newPlayerIds = formData.players.map(gp => gp.player_id);
+        
+        // Find players to add and players to update
+        const playersToAdd = formData.players.filter(gp => !currentPlayerIds.includes(gp.player_id));
+        const playersToUpdate = formData.players.filter(gp => currentPlayerIds.includes(gp.player_id));
+        
+        // Add new players to the game
+        for (const newPlayer of playersToAdd) {
+          try {
+            const response = await fetch(`/api/games/${game.id}/players`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({
+                player_id: newPlayer.player_id,
+                buyin: parseFloat(newPlayer.buyin.toString()),
+                cashout: parseFloat(newPlayer.cashout.toString())
+              })
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.warn('Could not add player to game:', errorData);
+            }
+          } catch (addErr) {
+            console.warn('Could not add player to game:', addErr);
+          }
+        }
+        
+        // Update existing players' amounts
+        for (const gamePlayer of playersToUpdate) {
           try {
             const response = await fetch(`/api/games/${game.id}/players/${gamePlayer.player_id}`, {
               method: 'PUT',
@@ -256,7 +290,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
                 disabled={isLoading || getAvailablePlayers().length === 0}
               >
                 <Plus className="h-4 w-4 mr-1" />
-                Add Player
+                {game ? 'Add More Players' : 'Add Player'}
               </button>
             </div>
 
