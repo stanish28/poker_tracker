@@ -19,7 +19,7 @@ const authRoutes = require('./routes/auth');
 const playerRoutes = require('./routes/players');
 const gameRoutes = require('./routes/games');
 const settlementRoutes = require('./routes/settlements');
-const { initializeDatabase } = require('./database/init');
+const { initializeDatabase } = require('./database/adapter');
 
 const app = express();
 const PORT = process.env.PORT || 5001;

@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
-const { runQuery, getQuery, allQuery } = require('../database/init');
+const { runQuery, getQuery, allQuery } = require('../database/adapter');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();

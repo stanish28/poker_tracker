@@ -2,8 +2,8 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-// Use in-memory database for Vercel serverless functions, file-based for local development
-const DB_PATH = process.env.VERCEL ? ':memory:' : path.join(__dirname, 'poker_tracker.db');
+// Use /tmp for Vercel (better persistence than :memory:), file-based for local development  
+const DB_PATH = process.env.VERCEL ? '/tmp/poker_tracker.db' : path.join(__dirname, 'poker_tracker.db');
 
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
@@ -17,8 +17,8 @@ let isInitialized = false;
 
 const initializeDatabase = () => {
   return new Promise((resolve, reject) => {
-    // For in-memory database, always reinitialize
-    if (isInitialized && !process.env.VERCEL) {
+    // Skip if already initialized (but allow re-initialization in Vercel for persistence)
+    if (isInitialized) {
       resolve();
       return;
     }
@@ -102,50 +102,47 @@ const initializeDatabase = () => {
         } else {
           console.log('✅ Database tables initialized successfully');
           
-          // For Vercel deployment, create demo users and data since database doesn't persist
+          // For Vercel deployment, only create demo data if database is empty
           if (process.env.VERCEL) {
-            const bcrypt = require('bcryptjs');
-            
-            // Create multiple demo users with fixed IDs for consistency
-            const demoUsers = [
-              { id: 'demo-user-1', username: 'demo', email: 'demo@example.com', password: 'demo123' },
-              { id: 'demo-user-2', username: 'player1', email: 'player1@example.com', password: 'player123' },
-              { id: 'demo-user-3', username: 'player2', email: 'player2@example.com', password: 'player123' }
-            ];
-            
-            demoUsers.forEach(user => {
-              const passwordHash = bcrypt.hashSync(user.password, 12);
-              db.run(
-                'INSERT OR REPLACE INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)',
-                [user.id, user.username, user.email, passwordHash],
-                (err) => {
-                  if (err) {
-                    console.log(`Error creating user ${user.username}:`, err.message);
-                  } else {
-                    console.log(`✅ Demo user ${user.username} created`);
+            db.get('SELECT COUNT(*) as count FROM users', (err, row) => {
+              if (!err && row.count === 0) {
+                const bcrypt = require('bcryptjs');
+                console.log('🎯 Creating initial demo data for empty database');
+                
+                // Create one demo user for initial setup
+                const demoUserId = 'demo-user-1';
+                const demoPasswordHash = bcrypt.hashSync('demo123', 12);
+                
+                db.run(
+                  'INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)',
+                  [demoUserId, 'demo', 'demo@example.com', demoPasswordHash],
+                  (err) => {
+                    if (!err) {
+                      console.log('✅ Demo user created for initial setup');
+                    }
                   }
-                }
-              );
-            });
-            
-            // Create some demo players
-            const demoPlayers = [
-              { id: 'player-1', name: 'Alice' },
-              { id: 'player-2', name: 'Bob' },
-              { id: 'player-3', name: 'Charlie' },
-              { id: 'player-4', name: 'Diana' }
-            ];
-            
-            demoPlayers.forEach(player => {
-              db.run(
-                'INSERT OR REPLACE INTO players (id, name, net_profit, total_games, total_buyins, total_cashouts) VALUES (?, ?, ?, ?, ?, ?)',
-                [player.id, player.name, 0, 0, 0, 0],
-                (err) => {
-                  if (!err) {
-                    console.log(`✅ Demo player ${player.name} created`);
-                  }
-                }
-              );
+                );
+                
+                // Create some demo players
+                const demoPlayers = [
+                  { id: 'player-1', name: 'Alice' },
+                  { id: 'player-2', name: 'Bob' },
+                  { id: 'player-3', name: 'Charlie' },
+                  { id: 'player-4', name: 'Diana' }
+                ];
+                
+                demoPlayers.forEach(player => {
+                  db.run(
+                    'INSERT INTO players (id, name, net_profit, total_games, total_buyins, total_cashouts) VALUES (?, ?, ?, ?, ?, ?)',
+                    [player.id, player.name, 0, 0, 0, 0],
+                    (err) => {
+                      if (!err) {
+                        console.log(`✅ Demo player ${player.name} created`);
+                      }
+                    }
+                  );
+                });
+              }
             });
           }
           

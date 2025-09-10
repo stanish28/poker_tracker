@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
-const { runQuery, getQuery } = require('../database/init');
+const { runQuery, getQuery } = require('../database/adapter');
 
 const router = express.Router();
 
@@ -19,17 +19,7 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    // For Vercel deployment, disable new registrations and suggest demo accounts
-    if (process.env.VERCEL) {
-      return res.status(400).json({ 
-        error: 'Registration is disabled in demo mode. Please use demo account: username="demo", password="demo123"',
-        demoAccounts: [
-          { username: 'demo', password: 'demo123' },
-          { username: 'player1', password: 'player123' },
-          { username: 'player2', password: 'player123' }
-        ]
-      });
-    }
+    // Allow registration in all environments
 
     const { username, email, password } = req.body;
 
