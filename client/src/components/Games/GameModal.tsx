@@ -122,7 +122,6 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         // Get current game players to determine what changed
         const currentGameDetails = await apiService.getGame(game.id);
         const currentPlayerIds = currentGameDetails.players.map(p => p.player_id);
-        const newPlayerIds = formData.players.map(gp => gp.player_id);
         
         // Find players to add and players to update
         const playersToAdd = formData.players.filter(gp => !currentPlayerIds.includes(gp.player_id));
