@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
@@ -12,6 +12,7 @@ const Players: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchPlayers();
@@ -72,6 +73,20 @@ const Players: React.FC = () => {
     });
   };
 
+  const clearSearch = () => {
+    setSearchTerm('');
+  };
+
+  // Filter players based on search term
+  const filteredPlayers = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return players;
+    }
+    return players.filter(player =>
+      player.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [players, searchTerm]);
+
   const handlePlayerSaved = (savedPlayer: Player) => {
     if (editingPlayer) {
       setPlayers(prev => prev.map(p => p.id === savedPlayer.id ? savedPlayer : p));
@@ -113,7 +128,12 @@ const Players: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Players</h1>
-          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Manage poker players and track their statistics</p>
+          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">
+            Manage poker players and track their statistics
+            {searchTerm && (
+              <span className="text-primary-600"> • {filteredPlayers.length} of {players.length} shown</span>
+            )}
+          </p>
         </div>
         <button
           onClick={handleCreatePlayer}
@@ -124,6 +144,28 @@ const Players: React.FC = () => {
         </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-4 w-4 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search players by name..."
+          className="input pl-10 pr-10"
+        />
+        {searchTerm && (
+          <button
+            onClick={clearSearch}
+            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+          >
+            <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+          </button>
+        )}
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="p-4 bg-danger-50 border border-danger-200 rounded-md">
@@ -132,11 +174,11 @@ const Players: React.FC = () => {
       )}
 
       {/* Players List */}
-      {players.length > 0 ? (
+      {filteredPlayers.length > 0 ? (
         <>
           {/* Desktop Grid */}
           <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-6">
-            {players.map((player) => (
+            {filteredPlayers.map((player) => (
               <div key={player.id} className="card">
                 <div className="card-content">
                   <div className="flex justify-between items-start mb-4">
@@ -199,7 +241,7 @@ const Players: React.FC = () => {
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
-            {players.map((player) => {
+            {filteredPlayers.map((player) => {
               const isExpanded = expandedPlayers.has(player.id);
               return (
                 <div key={player.id} className="card">
@@ -286,17 +328,39 @@ const Players: React.FC = () => {
       ) : (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
-            <DollarSign className="h-12 w-12 mx-auto" />
+            {searchTerm ? (
+              <Search className="h-12 w-12 mx-auto" />
+            ) : (
+              <DollarSign className="h-12 w-12 mx-auto" />
+            )}
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No players yet</h3>
-          <p className="text-gray-600 mb-6">Get started by adding your first player</p>
-          <button
-            onClick={handleCreatePlayer}
-            className="btn btn-primary btn-md"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Player
-          </button>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            {searchTerm ? `No players found for "${searchTerm}"` : 'No players yet'}
+          </h3>
+          <p className="text-gray-600 mb-6">
+            {searchTerm ? (
+              <>
+                Try searching for a different name or{' '}
+                <button 
+                  onClick={clearSearch}
+                  className="text-primary-600 hover:text-primary-700 underline"
+                >
+                  clear search
+                </button>
+              </>
+            ) : (
+              'Get started by adding your first player'
+            )}
+          </p>
+          {!searchTerm && (
+            <button
+              onClick={handleCreatePlayer}
+              className="btn btn-primary btn-md"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Player
+            </button>
+          )}
         </div>
       )}
 
