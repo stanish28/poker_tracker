@@ -2,7 +2,8 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-const DB_PATH = path.join(__dirname, 'poker_tracker.db');
+// Use /tmp directory for Vercel serverless functions (temporary but persists during function lifecycle)
+const DB_PATH = process.env.VERCEL ? '/tmp/poker_tracker.db' : path.join(__dirname, 'poker_tracker.db');
 
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
@@ -12,8 +13,16 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
   }
 });
 
+let isInitialized = false;
+
 const initializeDatabase = () => {
   return new Promise((resolve, reject) => {
+    // Skip if already initialized (for serverless environments)
+    if (isInitialized) {
+      resolve();
+      return;
+    }
+    
     db.serialize(() => {
       // Users table
       db.run(`
@@ -92,6 +101,7 @@ const initializeDatabase = () => {
           reject(err);
         } else {
           console.log('✅ Database tables initialized successfully');
+          isInitialized = true;
           resolve();
         }
       });

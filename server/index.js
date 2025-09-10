@@ -34,6 +34,19 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Middleware to ensure database is initialized for each request (Vercel serverless)
+app.use(async (req, res, next) => {
+  if (process.env.VERCEL) {
+    try {
+      await initializeDatabase();
+    } catch (error) {
+      console.error('Database initialization error:', error);
+      return res.status(500).json({ error: 'Database initialization failed' });
+    }
+  }
+  next();
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -64,14 +77,27 @@ app.use('*', (req, res) => {
 });
 
 // Initialize database and start server
-initializeDatabase()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-    });
-  })
-  .catch(err => {
-    console.error('Failed to initialize database:', err);
-    process.exit(1);
-  });
+const startServer = async () => {
+  try {
+    await initializeDatabase();
+    
+    // Only start listening if not on Vercel (serverless)
+    if (!process.env.VERCEL) {
+      app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
+  }
+};
+
+// Initialize database on startup
+startServer();
+
+// For Vercel serverless functions, export the app
+module.exports = app;
