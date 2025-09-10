@@ -1,0 +1,211 @@
+import { 
+  AuthResponse, 
+  User, 
+  Player, 
+  PlayerStats, 
+  Game, 
+  GameWithPlayers, 
+  CreateGameRequest, 
+  GameStats,
+  Settlement,
+  CreateSettlementRequest,
+  SettlementStats,
+  PlayerDebts,
+  ApiError
+} from '../types';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+
+class ApiError extends Error {
+  constructor(public status: number, message: string, public details?: any) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+class ApiService {
+  private token: string | null = null;
+
+  constructor() {
+    this.token = localStorage.getItem('token');
+  }
+
+  private async request<T>(
+    endpoint: string, 
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
+    
+    const config: RequestInit = {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    try {
+      const response = await fetch(url, config);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(
+          response.status,
+          errorData.error || errorData.message || 'Request failed',
+          errorData
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(0, 'Network error', error);
+    }
+  }
+
+  setToken(token: string | null) {
+    this.token = token;
+    if (token) {
+      localStorage.setItem('token', token);
+    } else {
+      localStorage.removeItem('token');
+    }
+  }
+
+  getToken(): string | null {
+    return this.token;
+  }
+
+  // Auth endpoints
+  async login(username: string, password: string): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  }
+
+  async register(username: string, email: string, password: string): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password }),
+    });
+  }
+
+  async verifyToken(): Promise<{ user: User }> {
+    return this.request<{ user: User }>('/auth/verify');
+  }
+
+  // Player endpoints
+  async getPlayers(): Promise<Player[]> {
+    return this.request<Player[]>('/players');
+  }
+
+  async getPlayer(id: string): Promise<Player> {
+    return this.request<Player>(`/players/${id}`);
+  }
+
+  async createPlayer(name: string): Promise<Player> {
+    return this.request<Player>('/players', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async updatePlayer(id: string, name: string): Promise<Player> {
+    return this.request<Player>(`/players/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async deletePlayer(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/players/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getPlayerStats(id: string): Promise<PlayerStats> {
+    return this.request<PlayerStats>(`/players/${id}/stats`);
+  }
+
+  // Game endpoints
+  async getGames(): Promise<Game[]> {
+    return this.request<Game[]>('/games');
+  }
+
+  async getGame(id: string): Promise<GameWithPlayers> {
+    return this.request<GameWithPlayers>(`/games/${id}`);
+  }
+
+  async createGame(gameData: CreateGameRequest): Promise<Game> {
+    return this.request<Game>('/games', {
+      method: 'POST',
+      body: JSON.stringify(gameData),
+    });
+  }
+
+  async updateGame(id: string, updates: Partial<Game>): Promise<Game> {
+    return this.request<Game>(`/games/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteGame(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/games/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getGameStats(): Promise<GameStats> {
+    return this.request<GameStats>('/games/stats/overview');
+  }
+
+  // Settlement endpoints
+  async getSettlements(): Promise<Settlement[]> {
+    return this.request<Settlement[]>('/settlements');
+  }
+
+  async getSettlement(id: string): Promise<Settlement> {
+    return this.request<Settlement>(`/settlements/${id}`);
+  }
+
+  async createSettlement(settlementData: CreateSettlementRequest): Promise<Settlement> {
+    return this.request<Settlement>('/settlements', {
+      method: 'POST',
+      body: JSON.stringify(settlementData),
+    });
+  }
+
+  async updateSettlement(id: string, updates: Partial<Settlement>): Promise<Settlement> {
+    return this.request<Settlement>(`/settlements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteSettlement(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/settlements/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getSettlementStats(): Promise<SettlementStats> {
+    return this.request<SettlementStats>('/settlements/stats/overview');
+  }
+
+  async getPlayerDebts(playerId: string): Promise<PlayerDebts> {
+    return this.request<PlayerDebts>(`/settlements/player/${playerId}/debts`);
+  }
+
+  // Health check
+  async healthCheck(): Promise<{ status: string; timestamp: string; environment: string }> {
+    return this.request('/health');
+  }
+}
+
+export const apiService = new ApiService();
+export { ApiError };
