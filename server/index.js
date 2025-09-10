@@ -2,7 +2,18 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+// Load environment variables (only if not on Vercel)
+if (!process.env.VERCEL) {
+  require('dotenv').config();
+}
+
+// Ensure JWT_SECRET is available
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your_jwt_secret_key_here') {
+  console.error('❌ JWT_SECRET environment variable is not properly configured');
+  if (!process.env.VERCEL) {
+    process.exit(1);
+  }
+}
 
 const authRoutes = require('./routes/auth');
 const playerRoutes = require('./routes/players');
