@@ -4,12 +4,10 @@ import {
   Gamepad2, 
   CreditCard, 
   DollarSign,
-  TrendingUp,
-  TrendingDown,
   Activity
 } from 'lucide-react';
 import { apiService } from '../../services/api';
-import { Player, Game, Settlement, DashboardStats } from '../../types';
+import { DashboardStats } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 
 const Dashboard: React.FC = () => {
@@ -126,23 +124,23 @@ const Dashboard: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">Overview of your poker tracking data</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Overview of your poker tracking data</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <div key={index} className="stat-card">
-              <div className="flex items-center">
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <Icon className={`h-6 w-6 ${stat.color}`} />
+              <div className="flex flex-col sm:flex-row items-center sm:items-start">
+                <div className={`p-2 sm:p-3 rounded-lg ${stat.bgColor} mb-2 sm:mb-0`}>
+                  <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${stat.color}`} />
                 </div>
-                <div className="ml-4">
-                  <p className="stat-label">{stat.title}</p>
-                  <p className="stat-value">{stat.value}</p>
+                <div className="sm:ml-4 text-center sm:text-left">
+                  <p className="stat-label text-xs sm:text-sm">{stat.title}</p>
+                  <p className="stat-value text-xl sm:text-3xl">{stat.value}</p>
                 </div>
               </div>
             </div>
@@ -151,7 +149,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>

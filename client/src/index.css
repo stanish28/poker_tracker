@@ -4,7 +4,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-gray-200;
   }
   
   body {
@@ -18,7 +18,7 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background;
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-white;
   }
   
   .btn-primary {
@@ -38,19 +38,19 @@
   }
   
   .btn-sm {
-    @apply h-8 px-3 text-xs;
+    @apply h-9 px-3 text-xs min-h-[44px] sm:h-8 sm:min-h-0;
   }
-  
+
   .btn-md {
-    @apply h-10 px-4 py-2;
+    @apply h-11 px-4 py-2 min-h-[44px] sm:h-10 sm:min-h-0;
   }
-  
+
   .btn-lg {
-    @apply h-12 px-8 text-lg;
+    @apply h-12 px-8 text-lg min-h-[44px];
   }
   
   .input {
-    @apply flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex h-11 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:text-sm;
   }
   
   .card {
@@ -66,7 +66,7 @@
   }
   
   .tab {
-    @apply inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
   }
   
   .tab-active {
@@ -173,4 +173,32 @@
 /* Slide up animation for modals */
 .slide-up {
   @apply animate-slide-up;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  /* Improve touch targets */
+  .card {
+    @apply active:bg-gray-50 transition-colors;
+  }
+  
+  /* Better spacing for mobile */
+  .space-y-6 > * + * {
+    @apply !mt-4;
+  }
+  
+  .space-y-4 > * + * {
+    @apply !mt-3;
+  }
+  
+  /* Prevent zoom on input focus */
+  input[type="text"],
+  input[type="email"], 
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

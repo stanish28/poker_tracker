@@ -108,14 +108,14 @@ const Settlements: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Settlements</h1>
-          <p className="mt-2 text-gray-600">Track financial settlements between players</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settlements</h1>
+          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Track financial settlements between players</p>
         </div>
         <button
           onClick={handleCreateSettlement}
-          className="btn btn-primary btn-md"
+          className="btn btn-primary btn-md w-full sm:w-auto"
           disabled={players.length < 2}
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -139,80 +139,157 @@ const Settlements: React.FC = () => {
         </div>
       )}
 
-      {/* Settlements Table */}
+      {/* Settlements List */}
       {settlements.length > 0 ? (
-        <div className="card">
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead className="table-header">
-                <tr>
-                  <th className="table-head">Date</th>
-                  <th className="table-head">From</th>
-                  <th className="table-head">To</th>
-                  <th className="table-head">Amount</th>
-                  <th className="table-head">Notes</th>
-                  <th className="table-head">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {settlements.map((settlement) => (
-                  <tr key={settlement.id} className="table-row">
-                    <td className="table-cell">
-                      <div className="font-medium text-gray-900">
-                        {formatDate(settlement.date)}
-                      </div>
-                    </td>
-                    <td className="table-cell">
-                      <span className="text-gray-900">
-                        {settlement.from_player_name}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <span className="text-gray-900">
-                        {settlement.to_player_name}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <span className="font-medium text-gray-900">
-                        {formatCurrency(settlement.amount)}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <span className="text-sm text-gray-600 truncate max-w-xs block">
-                        {settlement.notes || '-'}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleViewSettlement(settlement)}
-                          className="btn btn-secondary btn-sm"
-                          title="View Details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEditSettlement(settlement)}
-                          className="btn btn-secondary btn-sm"
-                          title="Edit Settlement"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSettlement(settlement)}
-                          className="btn btn-danger btn-sm"
-                          title="Delete Settlement"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+        <>
+          {/* Desktop Table */}
+          <div className="hidden md:block card">
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead className="table-header">
+                  <tr>
+                    <th className="table-head">Date</th>
+                    <th className="table-head">From</th>
+                    <th className="table-head">To</th>
+                    <th className="table-head">Amount</th>
+                    <th className="table-head">Notes</th>
+                    <th className="table-head">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {settlements.map((settlement) => (
+                    <tr key={settlement.id} className="table-row">
+                      <td className="table-cell">
+                        <div className="font-medium text-gray-900">
+                          {formatDate(settlement.date)}
+                        </div>
+                      </td>
+                      <td className="table-cell">
+                        <span className="text-gray-900">
+                          {settlement.from_player_name}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <span className="text-gray-900">
+                          {settlement.to_player_name}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <span className="font-medium text-gray-900">
+                          {formatCurrency(settlement.amount)}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <span className="text-sm text-gray-600 truncate max-w-xs block">
+                          {settlement.notes || '-'}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleViewSettlement(settlement)}
+                            className="btn btn-secondary btn-sm"
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEditSettlement(settlement)}
+                            className="btn btn-secondary btn-sm"
+                            title="Edit Settlement"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSettlement(settlement)}
+                            className="btn btn-danger btn-sm"
+                            title="Delete Settlement"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile Cards */}
+          <div className="md:hidden space-y-4">
+            {settlements.map((settlement) => (
+              <div key={settlement.id} className="card p-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 mb-1">
+                      {formatDate(settlement.date)}
+                    </h3>
+                    <div className="text-lg font-bold text-primary-600">
+                      {formatCurrency(settlement.amount)}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleViewSettlement(settlement)}
+                      className="btn btn-secondary btn-sm"
+                      title="View Details"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleEditSettlement(settlement)}
+                      className="btn btn-secondary btn-sm"
+                      title="Edit Settlement"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSettlement(settlement)}
+                      className="btn btn-danger btn-sm"
+                      title="Delete Settlement"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Payment Flow */}
+                <div className="flex items-center justify-center mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="text-center">
+                      <div className="text-sm font-medium text-gray-900">
+                        {settlement.from_player_name}
+                      </div>
+                      <div className="text-xs text-gray-500">From</div>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-8 h-px bg-gray-300"></div>
+                      <DollarSign className="h-4 w-4 text-primary-600 mx-1" />
+                      <div className="w-8 h-px bg-gray-300"></div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-medium text-gray-900">
+                        {settlement.to_player_name}
+                      </div>
+                      <div className="text-xs text-gray-500">To</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {settlement.notes && (
+                  <div className="mb-3">
+                    <span className="text-xs text-gray-500">Notes</span>
+                    <p className="text-sm text-gray-700 mt-1">
+                      {settlement.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">

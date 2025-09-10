@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, Player, CreateGameRequest } from '../../types';
+import PlayerSelector from './PlayerSelector';
 
 interface GameModalProps {
   game: Game | null;
@@ -23,6 +24,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPlayerSelectorOpen, setIsPlayerSelectorOpen] = useState(false);
 
   useEffect(() => {
     if (game) {
@@ -46,21 +48,19 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   };
 
   const handleAddPlayer = () => {
-    if (players.length === 0) return;
-    
-    const availablePlayers = players.filter(p => 
-      !formData.players.some(gp => gp.player_id === p.id)
-    );
-    
-    if (availablePlayers.length === 0) return;
+    setIsPlayerSelectorOpen(true);
+  };
+
+  const handlePlayersSelected = (selectedPlayerIds: string[]) => {
+    const newPlayers = selectedPlayerIds.map(playerId => ({
+      player_id: playerId,
+      buyin: 0,
+      cashout: 0
+    }));
 
     setFormData(prev => ({
       ...prev,
-      players: [...prev.players, {
-        player_id: availablePlayers[0].id,
-        buyin: 0,
-        cashout: 0
-      }]
+      players: [...prev.players, ...newPlayers]
     }));
   };
 
@@ -130,9 +130,9 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto slide-up">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto slide-up">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
             {game ? 'Edit Game' : 'Create New Game'}
           </h2>
@@ -145,7 +145,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
           {error && (
             <div className="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-md">
               <p className="text-sm text-danger-600">{error}</p>
@@ -208,7 +208,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
                       </button>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Buy-in ($)
@@ -248,7 +248,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
           {formData.players.length > 0 && (
             <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <h4 className="font-medium text-gray-900 mb-3">Game Summary</h4>
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Total Buy-ins:</span>
                   <span className="ml-2 font-medium">${totalBuyins.toFixed(2)}</span>
@@ -270,7 +270,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
             </div>
           )}
 
-          <div className="flex justify-end space-x-3">
+          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
             <button
               type="button"
               onClick={onClose}
@@ -296,6 +296,15 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
           </div>
         </form>
       </div>
+
+      {/* Player Selector Modal */}
+      {isPlayerSelectorOpen && (
+        <PlayerSelector
+          availablePlayers={getAvailablePlayers()}
+          onPlayersSelected={handlePlayersSelected}
+          onClose={() => setIsPlayerSelectorOpen(false)}
+        />
+      )}
     </div>
   );
 };

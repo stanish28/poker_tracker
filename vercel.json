@@ -2,6 +2,10 @@
   "version": 2,
   "builds": [
     {
+      "src": "server/index.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "client/package.json",
       "use": "@vercel/static-build",
       "config": {
@@ -12,14 +16,16 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://your-backend-domain.com/api/$1"
+      "dest": "/server/index.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/client/build/$1"
     }
   ],
-  "env": {
-    "REACT_APP_API_URL": "https://your-backend-domain.com/api"
+  "functions": {
+    "server/index.js": {
+      "maxDuration": 30
+    }
   }
 }

@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 5001;
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.com'] 
+    ? true // Allow all origins in production for Vercel deployment
     : ['http://localhost:3000'],
   credentials: true
 }));
