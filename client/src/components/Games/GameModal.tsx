@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Plus, Trash2, Search } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, Player, CreateGameRequest } from '../../types';
@@ -111,10 +111,10 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
     }
   };
 
-  const getPlayerName = (playerId: string) => {
+  const getPlayerName = useCallback((playerId: string) => {
     const player = players.find(p => p.id === playerId);
     return player ? player.name : 'Unknown Player';
-  };
+  }, [players]);
 
   const getAvailablePlayers = () => {
     return players.filter(p => 
@@ -135,7 +135,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
       const playerName = getPlayerName(gamePlayer.player_id);
       return playerName.toLowerCase().includes(playerSearchTerm.toLowerCase());
     });
-  }, [formData.players, playerSearchTerm, players]);
+  }, [formData.players, playerSearchTerm, getPlayerName]);
 
   const totalBuyins = formData.players.reduce((sum, gp) => sum + parseFloat(gp.buyin.toString()), 0);
   const totalCashouts = formData.players.reduce((sum, gp) => sum + parseFloat(gp.cashout.toString()), 0);
