@@ -5,8 +5,6 @@ import {
   Gamepad2, 
   CreditCard, 
   LogOut, 
-  Menu,
-  X,
   User
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';

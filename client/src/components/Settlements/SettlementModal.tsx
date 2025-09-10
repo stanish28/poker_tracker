@@ -87,10 +87,6 @@ const SettlementModal: React.FC<SettlementModalProps> = ({ settlement, players, 
     }
   };
 
-  const getPlayerName = (playerId: string) => {
-    const player = players.find(p => p.id === playerId);
-    return player ? player.name : 'Select a player';
-  };
 
   const isFormValid = formData.from_player_id && formData.to_player_id && 
                      formData.amount && formData.from_player_id !== formData.to_player_id;

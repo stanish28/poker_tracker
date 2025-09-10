@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, CreditCard, Calendar, User, DollarSign } from 'lucide-react';
+import { X, Calendar, User, DollarSign } from 'lucide-react';
 import { Settlement } from '../../types';
 
 interface SettlementDetailsModalProps {
