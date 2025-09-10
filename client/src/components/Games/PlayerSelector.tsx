@@ -132,29 +132,29 @@ const PlayerSelector: React.FC<PlayerSelectorProps> = ({
                   </div>
                 ) : (
                   filteredPlayers.map((player) => (
-                  <label
-                    key={player.id}
-                    className="flex items-center p-2 sm:p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedPlayerIds.includes(player.id)}
-                      onChange={() => handlePlayerToggle(player.id)}
-                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                    />
-                    <div className="ml-3 flex-1">
-                      <div className="text-sm font-medium text-gray-900">
-                        {player.name}
+                    <label
+                      key={player.id}
+                      className="flex items-center p-2 sm:p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedPlayerIds.includes(player.id)}
+                        onChange={() => handlePlayerToggle(player.id)}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <div className="ml-3 flex-1">
+                        <div className="text-sm font-medium text-gray-900">
+                          {player.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {player.total_games} games • Net: ${parseFloat(String(player.net_profit || 0)).toFixed(2)}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {player.total_games} games • Net: ${parseFloat(String(player.net_profit || 0)).toFixed(2)}
-                      </div>
-                    </div>
-                    {selectedPlayerIds.includes(player.id) && (
-                      <Check className="h-4 w-4 text-primary-600" />
-                    )}
-                  </label>
-                  )
+                      {selectedPlayerIds.includes(player.id) && (
+                        <Check className="h-4 w-4 text-primary-600" />
+                      )}
+                    </label>
+                  ))
                 )}
               </div>
 
