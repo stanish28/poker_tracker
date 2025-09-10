@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Users, Calendar, TrendingUp, TrendingDown, Award, Target } from 'lucide-react';
+import { X, DollarSign, Users, TrendingUp, TrendingDown, Award, Target } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, GameWithPlayers } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
