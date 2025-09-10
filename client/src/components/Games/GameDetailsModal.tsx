@@ -32,11 +32,12 @@ const GameDetailsModal: React.FC<GameDetailsModalProps> = ({ game, onClose }) =>
     fetchGameDetails();
   }, [game.id]);
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | string) => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(amount);
+    }).format(numAmount || 0);
   };
 
   const formatDate = (dateString: string) => {

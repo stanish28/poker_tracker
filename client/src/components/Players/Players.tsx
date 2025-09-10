@@ -81,22 +81,25 @@ const Players: React.FC = () => {
     handleModalClose();
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | string) => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(amount);
+    }).format(numAmount || 0);
   };
 
-  const getProfitColor = (profit: number) => {
-    if (profit > 0) return 'text-success-600';
-    if (profit < 0) return 'text-danger-600';
+  const getProfitColor = (profit: number | string) => {
+    const numProfit = typeof profit === 'string' ? parseFloat(profit) : profit;
+    if (numProfit > 0) return 'text-success-600';
+    if (numProfit < 0) return 'text-danger-600';
     return 'text-gray-600';
   };
 
-  const getProfitIcon = (profit: number) => {
-    if (profit > 0) return <TrendingUp className="h-4 w-4" />;
-    if (profit < 0) return <TrendingDown className="h-4 w-4" />;
+  const getProfitIcon = (profit: number | string) => {
+    const numProfit = typeof profit === 'string' ? parseFloat(profit) : profit;
+    if (numProfit > 0) return <TrendingUp className="h-4 w-4" />;
+    if (numProfit < 0) return <TrendingDown className="h-4 w-4" />;
     return null;
   };
 
