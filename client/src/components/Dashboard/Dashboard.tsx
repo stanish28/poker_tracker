@@ -37,9 +37,9 @@ const Dashboard: React.FC = () => {
             id: game.id,
             type: 'game' as const,
             title: `Game on ${new Date(game.date).toLocaleDateString()}`,
-            description: `${game.player_count || 0} players, $${game.total_buyins.toFixed(2)} buy-ins`,
+            description: `${game.player_count || 0} players, $${parseFloat(String(game.total_buyins || 0)).toFixed(2)} buy-ins`,
             date: game.date,
-            amount: game.total_buyins
+            amount: parseFloat(String(game.total_buyins || 0))
           })),
           ...settlements.slice(0, 2).map(settlement => ({
             id: settlement.id,
@@ -47,7 +47,7 @@ const Dashboard: React.FC = () => {
             title: `${settlement.from_player_name} → ${settlement.to_player_name}`,
             description: settlement.notes || 'Settlement',
             date: settlement.date,
-            amount: settlement.amount
+            amount: parseFloat(String(settlement.amount || 0))
           }))
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
