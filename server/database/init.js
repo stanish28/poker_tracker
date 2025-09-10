@@ -2,8 +2,8 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-// Use /tmp directory for Vercel serverless functions (temporary but persists during function lifecycle)
-const DB_PATH = process.env.VERCEL ? '/tmp/poker_tracker.db' : path.join(__dirname, 'poker_tracker.db');
+// Use in-memory database for Vercel serverless functions, file-based for local development
+const DB_PATH = process.env.VERCEL ? ':memory:' : path.join(__dirname, 'poker_tracker.db');
 
 const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
@@ -17,8 +17,8 @@ let isInitialized = false;
 
 const initializeDatabase = () => {
   return new Promise((resolve, reject) => {
-    // Skip if already initialized (for serverless environments)
-    if (isInitialized) {
+    // For in-memory database, always reinitialize
+    if (isInitialized && !process.env.VERCEL) {
       resolve();
       return;
     }
@@ -101,6 +101,28 @@ const initializeDatabase = () => {
           reject(err);
         } else {
           console.log('✅ Database tables initialized successfully');
+          
+          // For Vercel deployment, create a demo user since database doesn't persist
+          if (process.env.VERCEL) {
+            const bcrypt = require('bcryptjs');
+            
+            // Create demo user with fixed ID for consistency
+            const demoUserId = 'demo-user-id-12345';
+            const demoPasswordHash = bcrypt.hashSync('demo123', 12);
+            
+            db.run(
+              'INSERT OR REPLACE INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)',
+              [demoUserId, 'demo', 'demo@example.com', demoPasswordHash],
+              (err) => {
+                if (err) {
+                  console.log('Error creating demo user:', err.message);
+                } else {
+                  console.log('✅ Demo user created for Vercel deployment');
+                }
+              }
+            );
+          }
+          
           isInitialized = true;
           resolve();
         }
