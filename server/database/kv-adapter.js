@@ -1,39 +1,28 @@
+const { kv } = require('@vercel/kv');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-// Database adapter that works with both SQLite (local) and handles Vercel better
-class DatabaseAdapter {
+// Hybrid adapter: KV for users (persistent), SQLite for other data (session-based)
+class HybridDatabaseAdapter {
   constructor() {
-    // For Vercel, use a global shared database instance to improve persistence
-    if (process.env.VERCEL) {
-      if (!global.__POKER_DB__) {
-        global.__POKER_DB__ = new sqlite3.Database('/tmp/poker_shared.db', (err) => {
-          if (err) {
-            console.error('Error opening shared database:', err.message);
-          } else {
-            console.log('📊 Connected to shared SQLite database');
-            // Enable optimizations
-            global.__POKER_DB__.run('PRAGMA journal_mode=WAL');
-            global.__POKER_DB__.run('PRAGMA synchronous=NORMAL');
-            global.__POKER_DB__.run('PRAGMA cache_size=2000');
-            global.__POKER_DB__.run('PRAGMA temp_store=memory');
-          }
-        });
-      }
-      this.db = global.__POKER_DB__;
-    } else {
-      // Local development
-      const dbPath = path.join(__dirname, 'poker_tracker.db');
-      this.db = new sqlite3.Database(dbPath, (err) => {
-        if (err) {
-          console.error('Error opening database:', err.message);
-        } else {
-          console.log('📊 Connected to SQLite database');
-        }
-      });
-    }
+    // SQLite for non-user data (players, games, settlements)
+    const dbPath = process.env.VERCEL 
+      ? '/tmp/poker_data.db'
+      : path.join(__dirname, 'poker_tracker.db');
     
-    this.isInitialized = global.__POKER_INITIALIZED__ || false;
+    this.db = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        console.error('Error opening database:', err.message);
+      } else {
+        console.log('📊 Connected to SQLite database for data');
+        // Enable optimizations
+        this.db.run('PRAGMA journal_mode=WAL');
+        this.db.run('PRAGMA synchronous=NORMAL');
+      }
+    });
+    
+    this.isInitialized = false;
+    this.useKV = process.env.VERCEL && process.env.KV_REST_API_URL;
   }
 
   async initialize() {
@@ -43,18 +32,9 @@ class DatabaseAdapter {
 
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
-        // Users table
-        this.db.run(`
-          CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-
+        // Only create non-user tables in SQLite
+        // Users will be stored in KV for persistence
+        
         // Players table
         this.db.run(`
           CREATE TABLE IF NOT EXISTS players (
@@ -121,7 +101,6 @@ class DatabaseAdapter {
           } else {
             console.log('✅ Database tables initialized successfully');
             this.isInitialized = true;
-            global.__POKER_INITIALIZED__ = true;
             resolve();
           }
         });
@@ -129,6 +108,52 @@ class DatabaseAdapter {
     });
   }
 
+  // User methods - use KV for persistence in production, SQLite for local
+  async createUser(userData) {
+    if (this.useKV) {
+      // Store in KV with username and email as keys for lookup
+      await kv.set(`user:${userData.id}`, userData);
+      await kv.set(`user:username:${userData.username}`, userData.id);
+      await kv.set(`user:email:${userData.email}`, userData.id);
+      return { id: userData.id, changes: 1 };
+    } else {
+      // Use SQLite for local development
+      return this.runQuery(
+        'INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)',
+        [userData.id, userData.username, userData.email, userData.password_hash]
+      );
+    }
+  }
+
+  async getUserByCredential(credential) {
+    if (this.useKV) {
+      // Try to find user by username or email
+      let userId = await kv.get(`user:username:${credential}`);
+      if (!userId) {
+        userId = await kv.get(`user:email:${credential}`);
+      }
+      if (userId) {
+        return await kv.get(`user:${userId}`);
+      }
+      return null;
+    } else {
+      // Use SQLite for local development
+      return this.getQuery(
+        'SELECT id, username, email, password_hash FROM users WHERE username = ? OR email = ?',
+        [credential, credential]
+      );
+    }
+  }
+
+  async getUserById(userId) {
+    if (this.useKV) {
+      return await kv.get(`user:${userId}`);
+    } else {
+      return this.getQuery('SELECT id, username, email FROM users WHERE id = ?', [userId]);
+    }
+  }
+
+  // Regular SQLite methods for other data
   runQuery(sql, params = []) {
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(err) {
@@ -167,10 +192,13 @@ class DatabaseAdapter {
 }
 
 // Create singleton instance
-const dbAdapter = new DatabaseAdapter();
+const dbAdapter = new HybridDatabaseAdapter();
 
 module.exports = {
   initializeDatabase: () => dbAdapter.initialize(),
+  createUser: (userData) => dbAdapter.createUser(userData),
+  getUserByCredential: (credential) => dbAdapter.getUserByCredential(credential),
+  getUserById: (userId) => dbAdapter.getUserById(userId),
   runQuery: (sql, params) => dbAdapter.runQuery(sql, params),
   getQuery: (sql, params) => dbAdapter.getQuery(sql, params),
   allQuery: (sql, params) => dbAdapter.allQuery(sql, params),
