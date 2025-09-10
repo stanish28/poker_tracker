@@ -260,8 +260,8 @@ router.get('/:id/net-profit', async (req, res) => {
     let settlementImpact = 0;
     for (const settlement of settlements) {
       if (settlement.from_player_id === playerId) {
-        // Player paid out money (negative impact - they lost money)
-        settlementImpact -= parseFloat(settlement.amount);
+        // Player paid settlement (positive impact - they settled their debt, reducing their negative balance)
+        settlementImpact += parseFloat(settlement.amount);
       } else if (settlement.to_player_id === playerId) {
         // Player received settlement (negative impact - they were paid out, reducing their net profit)
         settlementImpact -= parseFloat(settlement.amount);
