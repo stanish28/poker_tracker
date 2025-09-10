@@ -9,11 +9,16 @@ class DatabaseAdapter {
     
     if (this.isPostgres) {
       // PostgreSQL for production
-      this.pool = new Pool({
-        connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-      });
-      console.log('📊 Connected to PostgreSQL database');
+      try {
+        this.pool = new Pool({
+          connectionString: process.env.DATABASE_URL,
+          ssl: { rejectUnauthorized: false }
+        });
+        console.log('📊 Connected to PostgreSQL database');
+      } catch (error) {
+        console.error('PostgreSQL connection error:', error);
+        throw error;
+      }
     } else {
       // SQLite for local development
       const dbPath = path.join(__dirname, 'poker_tracker.db');
@@ -217,7 +222,13 @@ class DatabaseAdapter {
     if (this.isPostgres) {
       const client = await this.pool.connect();
       try {
-        const result = await client.query(sql, params);
+        // Convert SQLite syntax to PostgreSQL
+        let pgSql = sql.replace(/\?/g, (match, offset) => {
+          const paramIndex = sql.substring(0, offset).split('?').length;
+          return `$${paramIndex}`;
+        });
+        
+        const result = await client.query(pgSql, params);
         return { id: result.rows[0]?.id, changes: result.rowCount };
       } finally {
         client.release();
@@ -239,7 +250,13 @@ class DatabaseAdapter {
     if (this.isPostgres) {
       const client = await this.pool.connect();
       try {
-        const result = await client.query(sql, params);
+        // Convert SQLite syntax to PostgreSQL
+        let pgSql = sql.replace(/\?/g, (match, offset) => {
+          const paramIndex = sql.substring(0, offset).split('?').length;
+          return `$${paramIndex}`;
+        });
+        
+        const result = await client.query(pgSql, params);
         return result.rows[0] || null;
       } finally {
         client.release();
@@ -261,7 +278,13 @@ class DatabaseAdapter {
     if (this.isPostgres) {
       const client = await this.pool.connect();
       try {
-        const result = await client.query(sql, params);
+        // Convert SQLite syntax to PostgreSQL
+        let pgSql = sql.replace(/\?/g, (match, offset) => {
+          const paramIndex = sql.substring(0, offset).split('?').length;
+          return `$${paramIndex}`;
+        });
+        
+        const result = await client.query(pgSql, params);
         return result.rows;
       } finally {
         client.release();
