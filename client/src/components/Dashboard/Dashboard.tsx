@@ -14,7 +14,7 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [playerNetProfits, setPlayerNetProfits] = useState<Record<string, {
+  const [, setPlayerNetProfits] = useState<Record<string, {
     game_net_profit: number;
     settlement_impact: number;
     true_net_profit: number;
