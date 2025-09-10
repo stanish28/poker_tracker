@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { getQuery } = require('../database/adapter');
+const { getQuery } = require('../database/postgres-adapter');
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];

@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
-const { runQuery, getQuery } = require('../database/adapter');
+const { runQuery, getQuery } = require('../database/postgres-adapter');
 
 const router = express.Router();
 
