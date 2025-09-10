@@ -241,6 +241,96 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Update game player amounts
+router.put('/:gameId/players/:playerId', [
+  body('buyin').isNumeric().withMessage('Buy-in must be a number'),
+  body('cashout').isNumeric().withMessage('Cash-out must be a number')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { gameId, playerId } = req.params;
+    const { buyin, cashout } = req.body;
+    const profit = cashout - buyin;
+
+    // Check if game-player record exists
+    const existingGamePlayer = await getQuery(
+      'SELECT id FROM game_players WHERE game_id = ? AND player_id = ?',
+      [gameId, playerId]
+    );
+
+    if (!existingGamePlayer) {
+      return res.status(404).json({ error: 'Player not found in this game' });
+    }
+
+    // Update game player amounts
+    await runQuery(`
+      UPDATE game_players 
+      SET buyin = ?, cashout = ?, profit = ?
+      WHERE game_id = ? AND player_id = ?
+    `, [buyin, cashout, profit, gameId, playerId]);
+
+    // Recalculate and update game totals
+    const gameTotals = await getQuery(`
+      SELECT 
+        SUM(buyin) as total_buyins,
+        SUM(cashout) as total_cashouts
+      FROM game_players 
+      WHERE game_id = ?
+    `, [gameId]);
+
+    const discrepancy = gameTotals.total_cashouts - gameTotals.total_buyins;
+
+    await runQuery(`
+      UPDATE games 
+      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = NOW()
+      WHERE id = ?
+    `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
+
+    // Get old values BEFORE updating
+    const oldGamePlayer = await getQuery(
+      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = ? AND player_id = ?',
+      [gameId, playerId]
+    );
+
+    // Update game player amounts
+    await runQuery(`
+      UPDATE game_players 
+      SET buyin = ?, cashout = ?, profit = ?
+      WHERE game_id = ? AND player_id = ?
+    `, [buyin, cashout, profit, gameId, playerId]);
+
+    // Update player statistics if we had old values
+    if (oldGamePlayer) {
+      const oldProfit = parseFloat(oldGamePlayer.profit || 0);
+      const oldBuyin = parseFloat(oldGamePlayer.buyin || 0);
+      const oldCashout = parseFloat(oldGamePlayer.cashout || 0);
+      
+      const profitDifference = profit - oldProfit;
+      const buyinDifference = buyin - oldBuyin;
+      const cashoutDifference = cashout - oldCashout;
+
+      await runQuery(`
+        UPDATE players 
+        SET 
+          net_profit = net_profit + ?,
+          total_buyins = total_buyins + ?,
+          total_cashouts = total_cashouts + ?,
+          updated_at = NOW()
+        WHERE id = ?
+      `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
+    }
+
+    res.json({ message: 'Player amounts updated successfully' });
+  } catch (error) {
+    console.error('Error updating game player amounts:', error);
+    res.status(500).json({ error: 'Failed to update player amounts' });
+  }
+});
+
 // Get game statistics
 router.get('/stats/overview', async (req, res) => {
   try {

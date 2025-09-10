@@ -28,19 +28,40 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   const [playerSearchTerm, setPlayerSearchTerm] = useState('');
 
   useEffect(() => {
-    if (game) {
-      // For editing, we'd need to fetch the full game details
-      setFormData({
-        date: game.date,
-        players: []
-      });
-    } else {
-      setFormData({
-        date: new Date().toISOString().split('T')[0],
-        players: []
-      });
-    }
-    setError(null);
+    const loadGameData = async () => {
+      if (game) {
+        try {
+          setIsLoading(true);
+          // Fetch the full game details with players
+          const gameDetails = await apiService.getGame(game.id);
+          setFormData({
+            date: game.date,
+            players: gameDetails.players.map(p => ({
+              player_id: p.player_id,
+              buyin: p.buyin,
+              cashout: p.cashout
+            }))
+          });
+        } catch (err) {
+          console.error('Error loading game details:', err);
+          setError('Failed to load game details');
+          setFormData({
+            date: game.date,
+            players: []
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          players: []
+        });
+      }
+      setError(null);
+    };
+
+    loadGameData();
   }, [game]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,17 +114,51 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
       setIsLoading(true);
       setError(null);
 
-      const gameData: CreateGameRequest = {
-        date: formData.date,
-        players: formData.players.map(gp => ({
-          player_id: gp.player_id,
-          buyin: parseFloat(gp.buyin.toString()),
-          cashout: parseFloat(gp.cashout.toString())
-        }))
-      };
-
-      const savedGame = await apiService.createGame(gameData);
-      onSave(savedGame);
+      if (game) {
+        // For editing games, we need to update player amounts
+        // First update the game date
+        await apiService.updateGame(game.id, { date: formData.date });
+        
+        // Then update each player's amounts using the new endpoint
+        for (const gamePlayer of formData.players) {
+          try {
+            const response = await fetch(`/api/games/${game.id}/players/${gamePlayer.player_id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({
+                buyin: parseFloat(gamePlayer.buyin.toString()),
+                cashout: parseFloat(gamePlayer.cashout.toString())
+              })
+            });
+            
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.warn('Could not update player amounts:', errorData);
+            }
+          } catch (updateErr) {
+            console.warn('Could not update player amounts:', updateErr);
+          }
+        }
+        
+        // Fetch updated game data
+        const savedGame = await apiService.getGame(game.id);
+        onSave(savedGame);
+      } else {
+        // Create new game
+        const gameData: CreateGameRequest = {
+          date: formData.date,
+          players: formData.players.map(gp => ({
+            player_id: gp.player_id,
+            buyin: parseFloat(gp.buyin.toString()),
+            cashout: parseFloat(gp.cashout.toString())
+          }))
+        };
+        const savedGame = await apiService.createGame(gameData);
+        onSave(savedGame);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to save game');
     } finally {
@@ -349,7 +404,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
                   Creating...
                 </div>
               ) : (
-                'Create Game'
+                game ? 'Update Game' : 'Create Game'
               )}
             </button>
           </div>
