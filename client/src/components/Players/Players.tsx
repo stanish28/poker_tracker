@@ -244,87 +244,82 @@ const Players: React.FC = () => {
             ))}
           </div>
 
-          {/* Mobile Cards */}
-          <div className="md:hidden space-y-3">
+          {/* Mobile Compact Bars */}
+          <div className="md:hidden space-y-2">
             {filteredPlayers.map((player) => {
               const isExpanded = expandedPlayers.has(player.id);
               return (
-                <div key={player.id} className="card">
-                  <div className="p-4">
-                    {/* Main Info - Always Visible */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-1">{player.name}</h3>
+                <div key={player.id} className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                  {/* Main Bar - Always Visible */}
+                  <div className="flex items-center justify-between p-3">
+                    <div className="flex items-center flex-1 min-w-0">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-semibold text-gray-900 truncate">{player.name}</h3>
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                            {player.total_games} games
+                          </span>
+                        </div>
                         <div className={`flex items-center space-x-1 ${getProfitColor(player.net_profit)}`}>
                           {getProfitIcon(player.net_profit)}
-                          <span className="text-lg font-bold">{formatCurrency(player.net_profit)}</span>
+                          <span className="font-bold">{formatCurrency(player.net_profit)}</span>
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleEditPlayer(player)}
-                          className="btn btn-secondary btn-sm"
-                          title="Edit Player"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeletePlayer(player)}
-                          className="btn btn-danger btn-sm"
-                          title="Delete Player"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
                       </div>
                     </div>
-
-                    {/* Games Count - Always Visible */}
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm text-gray-600">Games Played</span>
-                      <span className="text-sm font-semibold text-gray-900">{player.total_games}</span>
+                    
+                    <div className="flex items-center space-x-2 ml-2">
+                      <button
+                        onClick={() => togglePlayerDetails(player.id)}
+                        className="btn btn-secondary btn-sm p-2"
+                        title={isExpanded ? 'Show Less' : 'Show Details'}
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleEditPlayer(player)}
+                        className="btn btn-secondary btn-sm p-2"
+                        title="Edit Player"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePlayer(player)}
+                        className="btn btn-danger btn-sm p-2"
+                        title="Delete Player"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-
-                    {/* Expandable Details Toggle */}
-                    <button
-                      onClick={() => togglePlayerDetails(player.id)}
-                      className="w-full flex items-center justify-center py-2 text-sm text-primary-600 hover:text-primary-700 transition-colors border-t border-gray-200"
-                    >
-                      <span className="mr-1">
-                        {isExpanded ? 'Show Less' : 'Show Details'}
-                      </span>
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </button>
-
-                    {/* Expandable Details */}
-                    {isExpanded && (
-                      <div className="mt-3 pt-3 border-t border-gray-200 space-y-3 animate-slide-up">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Total Buy-ins</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatCurrency(player.total_buyins)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">Total Cash-outs</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            {formatCurrency(player.total_cashouts)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                          <span className="text-xs text-gray-500">Joined</span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(player.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    )}
                   </div>
+
+                  {/* Expandable Details */}
+                  {isExpanded && (
+                    <div className="px-3 pb-3 pt-0 border-t border-gray-100 animate-slide-up">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Buy-ins</span>
+                          <p className="font-medium text-gray-900">
+                            {formatCurrency(player.total_buyins)}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Cash-outs</span>
+                          <p className="font-medium text-gray-900">
+                            {formatCurrency(player.total_cashouts)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500">
+                          Joined {new Date(player.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
