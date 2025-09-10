@@ -135,7 +135,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
       const playerName = getPlayerName(gamePlayer.player_id);
       return playerName.toLowerCase().includes(playerSearchTerm.toLowerCase());
     });
-  }, [formData.players, playerSearchTerm]);
+  }, [formData.players, playerSearchTerm, players]);
 
   const totalBuyins = formData.players.reduce((sum, gp) => sum + parseFloat(gp.buyin.toString()), 0);
   const totalCashouts = formData.players.reduce((sum, gp) => sum + parseFloat(gp.cashout.toString()), 0);
