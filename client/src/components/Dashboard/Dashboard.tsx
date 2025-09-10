@@ -29,7 +29,7 @@ const Dashboard: React.FC = () => {
           apiService.getSettlementStats()
         ]);
 
-        const totalVolume = gameStats.total_buyins + settlementStats.total_amount;
+        const totalVolume = parseFloat(String(gameStats.total_buyins || 0)) + parseFloat(String(settlementStats.total_amount || 0));
         
         // Create recent activity from games and settlements
         const recentActivity = [
