@@ -220,8 +220,8 @@ router.get('/stats/overview', async (req, res) => {
       FROM players p
       LEFT JOIN settlements s ON p.id = s.from_player_id OR p.id = s.to_player_id
       GROUP BY p.id, p.name
-      HAVING net_debt != 0
-      ORDER BY ABS(net_debt) DESC
+      HAVING COALESCE(SUM(CASE WHEN s.from_player_id = p.id THEN -s.amount ELSE s.amount END), 0) != 0
+      ORDER BY ABS(COALESCE(SUM(CASE WHEN s.from_player_id = p.id THEN -s.amount ELSE s.amount END), 0)) DESC
     `);
 
     res.json({ ...stats, recentSettlements, debtSummary });
