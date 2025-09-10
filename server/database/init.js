@@ -102,25 +102,51 @@ const initializeDatabase = () => {
         } else {
           console.log('✅ Database tables initialized successfully');
           
-          // For Vercel deployment, create a demo user since database doesn't persist
+          // For Vercel deployment, create demo users and data since database doesn't persist
           if (process.env.VERCEL) {
             const bcrypt = require('bcryptjs');
             
-            // Create demo user with fixed ID for consistency
-            const demoUserId = 'demo-user-id-12345';
-            const demoPasswordHash = bcrypt.hashSync('demo123', 12);
+            // Create multiple demo users with fixed IDs for consistency
+            const demoUsers = [
+              { id: 'demo-user-1', username: 'demo', email: 'demo@example.com', password: 'demo123' },
+              { id: 'demo-user-2', username: 'player1', email: 'player1@example.com', password: 'player123' },
+              { id: 'demo-user-3', username: 'player2', email: 'player2@example.com', password: 'player123' }
+            ];
             
-            db.run(
-              'INSERT OR REPLACE INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)',
-              [demoUserId, 'demo', 'demo@example.com', demoPasswordHash],
-              (err) => {
-                if (err) {
-                  console.log('Error creating demo user:', err.message);
-                } else {
-                  console.log('✅ Demo user created for Vercel deployment');
+            demoUsers.forEach(user => {
+              const passwordHash = bcrypt.hashSync(user.password, 12);
+              db.run(
+                'INSERT OR REPLACE INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)',
+                [user.id, user.username, user.email, passwordHash],
+                (err) => {
+                  if (err) {
+                    console.log(`Error creating user ${user.username}:`, err.message);
+                  } else {
+                    console.log(`✅ Demo user ${user.username} created`);
+                  }
                 }
-              }
-            );
+              );
+            });
+            
+            // Create some demo players
+            const demoPlayers = [
+              { id: 'player-1', name: 'Alice' },
+              { id: 'player-2', name: 'Bob' },
+              { id: 'player-3', name: 'Charlie' },
+              { id: 'player-4', name: 'Diana' }
+            ];
+            
+            demoPlayers.forEach(player => {
+              db.run(
+                'INSERT OR REPLACE INTO players (id, name, net_profit, total_games, total_buyins, total_cashouts) VALUES (?, ?, ?, ?, ?, ?)',
+                [player.id, player.name, 0, 0, 0, 0],
+                (err) => {
+                  if (!err) {
+                    console.log(`✅ Demo player ${player.name} created`);
+                  }
+                }
+              );
+            });
           }
           
           isInitialized = true;

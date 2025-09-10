@@ -19,6 +19,18 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
+    // For Vercel deployment, disable new registrations and suggest demo accounts
+    if (process.env.VERCEL) {
+      return res.status(400).json({ 
+        error: 'Registration is disabled in demo mode. Please use demo account: username="demo", password="demo123"',
+        demoAccounts: [
+          { username: 'demo', password: 'demo123' },
+          { username: 'player1', password: 'player123' },
+          { username: 'player2', password: 'player123' }
+        ]
+      });
+    }
+
     const { username, email, password } = req.body;
 
     // Check if user already exists
