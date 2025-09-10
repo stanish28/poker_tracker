@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Plus, Trash2, Search } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, Player, CreateGameRequest } from '../../types';
 import PlayerSelector from './PlayerSelector';
@@ -25,6 +25,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPlayerSelectorOpen, setIsPlayerSelectorOpen] = useState(false);
+  const [playerSearchTerm, setPlayerSearchTerm] = useState('');
 
   useEffect(() => {
     if (game) {
@@ -121,6 +122,21 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
     );
   };
 
+  const clearPlayerSearch = () => {
+    setPlayerSearchTerm('');
+  };
+
+  // Filter added players based on search term
+  const filteredGamePlayers = useMemo(() => {
+    if (!playerSearchTerm.trim()) {
+      return formData.players;
+    }
+    return formData.players.filter(gamePlayer => {
+      const playerName = getPlayerName(gamePlayer.player_id);
+      return playerName.toLowerCase().includes(playerSearchTerm.toLowerCase());
+    });
+  }, [formData.players, playerSearchTerm]);
+
   const totalBuyins = formData.players.reduce((sum, gp) => sum + parseFloat(gp.buyin.toString()), 0);
   const totalCashouts = formData.players.reduce((sum, gp) => sum + parseFloat(gp.cashout.toString()), 0);
   const discrepancy = totalCashouts - totalBuyins;
@@ -173,7 +189,10 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
               <label className="block text-sm font-medium text-gray-700">
-                Players
+                Players ({formData.players.length})
+                {playerSearchTerm && (
+                  <span className="text-primary-600 text-xs"> • {filteredGamePlayers.length} shown</span>
+                )}
               </label>
               <button
                 type="button"
@@ -186,13 +205,52 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
               </button>
             </div>
 
+            {/* Search Bar for Added Players */}
+            {formData.players.length > 3 && (
+              <div className="relative mb-4">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={playerSearchTerm}
+                  onChange={(e) => setPlayerSearchTerm(e.target.value)}
+                  placeholder="Search added players..."
+                  className="input pl-10 pr-10 text-sm"
+                />
+                {playerSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={clearPlayerSearch}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  >
+                    <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {formData.players.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <p>No players added yet. Click "Add Player" to get started.</p>
               </div>
+            ) : filteredGamePlayers.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Search className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                <p>No players found for "{playerSearchTerm}"</p>
+                <button 
+                  type="button"
+                  onClick={clearPlayerSearch}
+                  className="text-primary-600 hover:text-primary-700 underline text-sm mt-2"
+                >
+                  Clear search
+                </button>
+              </div>
             ) : (
               <div className="space-y-4">
-                {formData.players.map((gamePlayer, index) => (
+                {filteredGamePlayers.map((gamePlayer, originalIndex) => {
+                  const index = formData.players.findIndex(gp => gp.player_id === gamePlayer.player_id);
+                  return (
                   <div key={index} className="p-4 border border-gray-200 rounded-lg">
                     <div className="flex justify-between items-center mb-3">
                       <h4 className="font-medium text-gray-900">
@@ -239,7 +297,8 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
