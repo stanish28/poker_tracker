@@ -49,10 +49,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(async (req, res, next) => {
   if (process.env.VERCEL) {
     try {
+      console.log('🔄 Checking database initialization...');
       await initializeDatabase();
+      console.log('✅ Database initialization check complete');
     } catch (error) {
-      console.error('Database initialization error:', error);
-      return res.status(500).json({ error: 'Database initialization failed' });
+      console.error('❌ Database initialization error:', error);
+      return res.status(500).json({ 
+        error: 'Database initialization failed',
+        details: error.message 
+      });
     }
   }
   next();
@@ -75,11 +80,23 @@ app.use('/api/settlements', settlementRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('❌ Unhandled error:', err);
+  console.error('Stack trace:', err.stack);
   res.status(500).json({ 
     error: 'Something went wrong!',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
   });
+});
+
+// Catch unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Catch uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
 });
 
 // 404 handler

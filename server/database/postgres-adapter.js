@@ -41,6 +41,7 @@ class DatabaseAdapter {
 
     if (this.isPostgres) {
       // PostgreSQL initialization
+      console.log('🔄 Initializing PostgreSQL database...');
       const client = await this.pool.connect();
       try {
         await client.query('BEGIN');
@@ -123,6 +124,7 @@ class DatabaseAdapter {
         
       } catch (error) {
         await client.query('ROLLBACK');
+        console.error('❌ PostgreSQL initialization error:', error);
         throw error;
       } finally {
         client.release();
