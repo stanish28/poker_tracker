@@ -20,6 +20,13 @@ const Dashboard: React.FC = () => {
     true_net_profit: number;
     settlements_count: number;
   }>>({});
+  const [totalDiscrepancy, setTotalDiscrepancy] = useState<{
+    total_positive_profit: number;
+    total_negative_profit: number;
+    total_discrepancy: number;
+    is_balanced: boolean;
+    players_count: number;
+  } | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -27,13 +34,14 @@ const Dashboard: React.FC = () => {
         setIsLoading(true);
         setError(null);
 
-        const [players, games, settlements, gameStats, settlementStats] = await Promise.all([
-          apiService.getPlayers(),
-          apiService.getGames(),
-          apiService.getSettlements(),
-          apiService.getGameStats(),
-          apiService.getSettlementStats()
-        ]);
+                const [players, games, settlements, gameStats, settlementStats, discrepancyData] = await Promise.all([
+                  apiService.getPlayers(),
+                  apiService.getGames(),
+                  apiService.getSettlements(),
+                  apiService.getGameStats(),
+                  apiService.getSettlementStats(),
+                  apiService.getTotalDiscrepancy()
+                ]);
 
         // Fetch true net profit for all players in a single request
         try {
@@ -61,7 +69,10 @@ const Dashboard: React.FC = () => {
           setPlayerNetProfits(netProfitData);
         }
 
-        const totalVolume = parseFloat(String(gameStats.total_buyins || 0)) + parseFloat(String(settlementStats.total_amount || 0));
+                const totalVolume = parseFloat(String(gameStats.total_buyins || 0)) + parseFloat(String(settlementStats.total_amount || 0));
+                
+                // Set discrepancy data
+                setTotalDiscrepancy(discrepancyData);
         
         // Create recent activity from games and settlements
         const recentActivity = [
@@ -179,6 +190,50 @@ const Dashboard: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Total Discrepancy */}
+      {totalDiscrepancy && (
+        <div className="card">
+          <div className="card-header">
+            <h3 className="text-lg font-semibold text-gray-900">System Balance</h3>
+          </div>
+          <div className="card-content">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  +${totalDiscrepancy.total_positive_profit.toFixed(2)}
+                </div>
+                <div className="text-sm text-gray-600">Total Profits</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  -${totalDiscrepancy.total_negative_profit.toFixed(2)}
+                </div>
+                <div className="text-sm text-gray-600">Total Losses</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${totalDiscrepancy.is_balanced ? 'text-green-600' : 'text-orange-600'}`}>
+                  ${Math.abs(totalDiscrepancy.total_discrepancy).toFixed(2)}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {totalDiscrepancy.is_balanced ? 'Balanced ✅' : 'Discrepancy ⚠️'}
+                </div>
+              </div>
+            </div>
+            {!totalDiscrepancy.is_balanced && (
+              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="flex items-center">
+                  <div className="text-orange-600 mr-2">⚠️</div>
+                  <div className="text-sm text-orange-800">
+                    <strong>System discrepancy detected:</strong> ${totalDiscrepancy.total_discrepancy.toFixed(2)}
+                    {totalDiscrepancy.total_discrepancy > 0 ? ' more profits than losses' : ' more losses than profits'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

@@ -216,6 +216,17 @@ class ApiService {
     return this.request<SettlementStats>('/settlements/stats/overview');
   }
 
+  // Discrepancy endpoint
+  async getTotalDiscrepancy(): Promise<{
+    total_positive_profit: number;
+    total_negative_profit: number;
+    total_discrepancy: number;
+    is_balanced: boolean;
+    players_count: number;
+  }> {
+    return this.request('/discrepancy/total');
+  }
+
   async getPlayerDebts(playerId: string): Promise<PlayerDebts> {
     return this.request<PlayerDebts>(`/settlements/player/${playerId}/debts`);
   }
