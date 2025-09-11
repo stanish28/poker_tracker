@@ -45,19 +45,31 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Middleware to ensure database is initialized for each request (Vercel serverless)
+// Initialize database on startup (non-blocking)
+let dbInitialized = false;
+if (process.env.VERCEL) {
+  initializeDatabase()
+    .then(() => {
+      console.log('✅ Database initialized successfully on startup');
+      dbInitialized = true;
+    })
+    .catch((error) => {
+      console.error('❌ Database initialization failed on startup:', error);
+      // Don't exit, let the app continue with limited functionality
+    });
+}
+
+// Middleware to check database status (non-blocking)
 app.use(async (req, res, next) => {
-  if (process.env.VERCEL) {
+  if (process.env.VERCEL && !dbInitialized) {
     try {
-      console.log('🔄 Checking database initialization...');
+      console.log('🔄 Attempting database initialization...');
       await initializeDatabase();
-      console.log('✅ Database initialization check complete');
+      console.log('✅ Database initialization successful');
+      dbInitialized = true;
     } catch (error) {
       console.error('❌ Database initialization error:', error);
-      return res.status(500).json({ 
-        error: 'Database initialization failed',
-        details: error.message 
-      });
+      // Continue without blocking the request
     }
   }
   next();
@@ -68,8 +80,29 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    database_initialized: dbInitialized,
+    vercel: !!process.env.VERCEL
   });
+});
+
+// Database status endpoint
+app.get('/api/db-status', async (req, res) => {
+  try {
+    const { getQuery } = require('./database/postgres-adapter');
+    const result = await getQuery('SELECT COUNT(*) as count FROM users');
+    res.json({ 
+      status: 'OK', 
+      database_connected: true,
+      user_count: result?.count || 0
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'ERROR', 
+      database_connected: false,
+      error: error.message 
+    });
+  }
 });
 
 // API routes
