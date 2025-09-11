@@ -287,23 +287,23 @@ app.get('/api/games', async (req, res) => {
 
 app.get('/api/games/stats/overview', async (req, res) => {
   try {
-    console.log('📊 Games stats endpoint called - dbInitialized:', dbInitialized);
-    if (dbInitialized && dbAdapter) {
-      console.log('📊 Attempting to fetch game stats from database...');
-      // Use real database data
-      const stats = await dbAdapter.getQuery(`
-        SELECT 
-          COUNT(*) as total_games,
-          COALESCE(SUM(CAST(total_buyins AS DECIMAL)), 0) as total_buyins
-        FROM games
-      `);
-      console.log('📊 Game stats fetched from database:', stats);
+    console.log('📊 Games stats endpoint called');
+    // Try to get real data from database
+    const stats = await queryDatabase(`
+      SELECT 
+        COUNT(*) as total_games,
+        COALESCE(SUM(CAST(total_buyins AS DECIMAL)), 0) as total_buyins
+      FROM games
+    `);
+    
+    if (stats && stats.length > 0) {
+      console.log('📊 Found game stats in database:', stats[0]);
       res.json({
-        total_games: parseInt(stats.total_games),
-        total_buyins: stats.total_buyins.toString()
+        total_games: parseInt(stats[0].total_games),
+        total_buyins: stats[0].total_buyins.toString()
       });
     } else {
-      console.log('📊 Using mock data - dbInitialized:', dbInitialized, 'dbAdapter:', !!dbAdapter);
+      console.log('📊 No game stats found, using mock data');
       // Fallback to mock data
       res.json({
         total_games: 1,
@@ -320,52 +320,58 @@ app.get('/api/games/stats/overview', async (req, res) => {
 // Settlements endpoints (real data with fallback)
 app.get('/api/settlements', async (req, res) => {
   try {
-    if (dbInitialized && dbAdapter) {
-      // Use real database data
-      const settlements = await dbAdapter.allQuery(`
-        SELECT 
-          s.id, s.amount, s.notes, s.date, s.created_at,
-          fp.name as from_player_name,
-          tp.name as to_player_name
-        FROM settlements s
-        JOIN players fp ON s.from_player_id = fp.id
-        JOIN players tp ON s.to_player_id = tp.id
-        ORDER BY s.date DESC
-      `);
+    console.log('💰 Settlements endpoint called');
+    // Try to get real data from database
+    const settlements = await queryDatabase(`
+      SELECT 
+        s.id, s.amount, s.notes, s.date, s.created_at,
+        fp.name as from_player_name,
+        tp.name as to_player_name
+      FROM settlements s
+      JOIN players fp ON s.from_player_id = fp.id
+      JOIN players tp ON s.to_player_id = tp.id
+      ORDER BY s.date DESC
+    `);
+    
+    if (settlements) {
+      console.log('💰 Found', settlements.length, 'settlements in database');
       res.json(settlements);
     } else {
-      // Fallback to mock data
+      console.log('💰 No settlements found, using empty array');
       res.json([]);
     }
   } catch (error) {
-    console.error('Error fetching settlements:', error);
+    console.error('💰 Error fetching settlements:', error);
     res.status(500).json({ error: 'Failed to fetch settlements' });
   }
 });
 
 app.get('/api/settlements/stats/overview', async (req, res) => {
   try {
-    if (dbInitialized && dbAdapter) {
-      // Use real database data
-      const stats = await dbAdapter.getQuery(`
-        SELECT 
-          COUNT(*) as total_settlements,
-          COALESCE(SUM(CAST(amount AS DECIMAL)), 0) as total_amount
-        FROM settlements
-      `);
+    console.log('💰 Settlements stats endpoint called');
+    // Try to get real data from database
+    const stats = await queryDatabase(`
+      SELECT 
+        COUNT(*) as total_settlements,
+        COALESCE(SUM(CAST(amount AS DECIMAL)), 0) as total_amount
+      FROM settlements
+    `);
+    
+    if (stats && stats.length > 0) {
+      console.log('💰 Found settlement stats in database:', stats[0]);
       res.json({
-        total_settlements: parseInt(stats.total_settlements),
-        total_amount: stats.total_amount.toString()
+        total_settlements: parseInt(stats[0].total_settlements),
+        total_amount: stats[0].total_amount.toString()
       });
     } else {
-      // Fallback to mock data
+      console.log('💰 No settlement stats found, using mock data');
       res.json({
         total_settlements: 0,
         total_amount: '0.00'
       });
     }
   } catch (error) {
-    console.error('Error fetching settlement stats:', error);
+    console.error('💰 Error fetching settlement stats:', error);
     res.status(500).json({ error: 'Failed to fetch settlement stats' });
   }
 });
