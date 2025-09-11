@@ -91,21 +91,21 @@ app.get('/api/games-debug', async (req, res) => {
   try {
     console.log('🎮 Games debug endpoint called');
     
-    // Test the exact games query
-    const games = await queryDatabase(`
-      SELECT 
-        id, date, total_buyins, total_cashouts, player_count, is_completed
-      FROM games 
-      ORDER BY date DESC
-    `);
+    // Test different queries to see what's in the games table
+    const countResult = await queryDatabase('SELECT COUNT(*) as count FROM games');
+    const allGames = await queryDatabase('SELECT * FROM games LIMIT 5');
+    const simpleQuery = await queryDatabase('SELECT id, date FROM games LIMIT 5');
     
-    console.log('🎮 Games query result:', games);
-    console.log('🎮 Games length:', games?.length || 0);
+    console.log('🎮 Count result:', countResult);
+    console.log('🎮 All games result:', allGames);
+    console.log('🎮 Simple query result:', simpleQuery);
     
     res.json({
       status: 'OK',
-      games_found: games?.length || 0,
-      games: games || []
+      count_result: countResult,
+      all_games: allGames || [],
+      simple_query: simpleQuery || [],
+      count: countResult?.[0]?.count || 0
     });
   } catch (error) {
     console.error('🎮 Games debug error:', error);
