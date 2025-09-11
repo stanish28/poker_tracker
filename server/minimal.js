@@ -341,6 +341,38 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
   }
 });
 
+// Game players endpoint
+app.get('/api/games/:gameId/players', async (req, res) => {
+  try {
+    const gameId = req.params.gameId;
+    console.log('🎮 Game players endpoint called for game:', gameId);
+    
+    // Get game player details
+    const gamePlayers = await queryDatabase(`
+      SELECT 
+        gp.player_id,
+        gp.buy_in,
+        gp.cash_out,
+        p.name as player_name
+      FROM game_players gp
+      JOIN players p ON gp.player_id = p.id
+      WHERE gp.game_id = $1
+      ORDER BY p.name
+    `, [gameId]);
+    
+    if (gamePlayers) {
+      console.log('🎮 Found', gamePlayers.length, 'players in game');
+      res.json(gamePlayers);
+    } else {
+      console.log('🎮 No players found for game');
+      res.json([]);
+    }
+  } catch (error) {
+    console.error('🎮 Error fetching game players:', error);
+    res.status(500).json({ error: 'Failed to fetch game players' });
+  }
+});
+
 // Games endpoints (real data with fallback)
 app.get('/api/games', async (req, res) => {
   try {
