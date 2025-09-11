@@ -182,7 +182,9 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
 // Games endpoints (real data with fallback)
 app.get('/api/games', async (req, res) => {
   try {
+    console.log('🎮 Games endpoint called - dbInitialized:', dbInitialized);
     if (dbInitialized && dbAdapter) {
+      console.log('🎮 Attempting to fetch games from database...');
       // Use real database data
       const games = await dbAdapter.allQuery(`
         SELECT 
@@ -190,8 +192,10 @@ app.get('/api/games', async (req, res) => {
         FROM games 
         ORDER BY date DESC
       `);
+      console.log('🎮 Games fetched from database:', games.length, 'games');
       res.json(games);
     } else {
+      console.log('🎮 Using mock data - dbInitialized:', dbInitialized, 'dbAdapter:', !!dbAdapter);
       // Fallback to mock data
       res.json([
         {
@@ -205,14 +209,17 @@ app.get('/api/games', async (req, res) => {
       ]);
     }
   } catch (error) {
-    console.error('Error fetching games:', error);
+    console.error('🎮 Error fetching games:', error);
+    console.error('🎮 Error details:', error.message);
     res.status(500).json({ error: 'Failed to fetch games' });
   }
 });
 
 app.get('/api/games/stats/overview', async (req, res) => {
   try {
+    console.log('📊 Games stats endpoint called - dbInitialized:', dbInitialized);
     if (dbInitialized && dbAdapter) {
+      console.log('📊 Attempting to fetch game stats from database...');
       // Use real database data
       const stats = await dbAdapter.getQuery(`
         SELECT 
@@ -220,11 +227,13 @@ app.get('/api/games/stats/overview', async (req, res) => {
           COALESCE(SUM(CAST(total_buyins AS DECIMAL)), 0) as total_buyins
         FROM games
       `);
+      console.log('📊 Game stats fetched from database:', stats);
       res.json({
         total_games: parseInt(stats.total_games),
         total_buyins: stats.total_buyins.toString()
       });
     } else {
+      console.log('📊 Using mock data - dbInitialized:', dbInitialized, 'dbAdapter:', !!dbAdapter);
       // Fallback to mock data
       res.json({
         total_games: 1,
@@ -232,7 +241,8 @@ app.get('/api/games/stats/overview', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error fetching game stats:', error);
+    console.error('📊 Error fetching game stats:', error);
+    console.error('📊 Error details:', error.message);
     res.status(500).json({ error: 'Failed to fetch game stats' });
   }
 });
