@@ -11,6 +11,10 @@ let dbAdapter = null;
 async function initializeDatabase() {
   try {
     console.log('🔄 Initializing database...');
+    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    console.log('VERCEL:', process.env.VERCEL);
+    
     const { initializeDatabase: initDB, runQuery, getQuery, allQuery } = require('./database/postgres-adapter');
     
     await initDB();
@@ -19,6 +23,8 @@ async function initializeDatabase() {
     console.log('✅ Database initialized successfully');
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
     dbInitialized = false;
   }
 }
