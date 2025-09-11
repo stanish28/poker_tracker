@@ -86,6 +86,53 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
+// Database schema debug endpoint
+app.get('/api/db-schema', async (req, res) => {
+  try {
+    console.log('🔍 Database schema debug endpoint called');
+    
+    // Get table names
+    const tables = await queryDatabase(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
+    `);
+    
+    // Get column info for key tables
+    const gamePlayersColumns = await queryDatabase(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'game_players' 
+      ORDER BY ordinal_position
+    `);
+    
+    const gamesColumns = await queryDatabase(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'games' 
+      ORDER BY ordinal_position
+    `);
+    
+    console.log('🔍 Tables found:', tables);
+    console.log('🔍 Game players columns:', gamePlayersColumns);
+    console.log('🔍 Games columns:', gamesColumns);
+    
+    res.json({
+      status: 'OK',
+      tables: tables || [],
+      game_players_columns: gamePlayersColumns || [],
+      games_columns: gamesColumns || []
+    });
+  } catch (error) {
+    console.error('🔍 Database schema debug error:', error);
+    res.json({
+      status: 'ERROR',
+      error: error.message
+    });
+  }
+});
+
 // Games debug endpoint
 app.get('/api/games-debug', async (req, res) => {
   try {
