@@ -185,6 +185,63 @@ app.get('/api/players', async (req, res) => {
   }
 });
 
+// Individual player net profit endpoint
+app.get('/api/players/:id/net-profit', async (req, res) => {
+  try {
+    const playerId = req.params.id;
+    console.log('💰 Individual net-profit endpoint called for player:', playerId);
+    
+    // Get basic player info
+    const player = await queryDatabase(`
+      SELECT 
+        id, name, net_profit, total_games, total_buyins, total_cashouts
+      FROM players 
+      WHERE id = $1
+    `, [playerId]);
+
+    if (!player || player.length === 0) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    // Get settlements where this player is involved
+    const settlements = await queryDatabase(`
+      SELECT 
+        from_player_id, to_player_id, amount
+      FROM settlements 
+      WHERE from_player_id = $1 OR to_player_id = $1
+      ORDER BY created_at DESC
+    `, [playerId]);
+
+    // Calculate settlement impact
+    let settlementImpact = 0;
+    if (settlements) {
+      for (const settlement of settlements) {
+        if (settlement.from_player_id === playerId) {
+          // Player paid settlement (positive impact - they settled their debt, reducing their negative balance)
+          settlementImpact += parseFloat(settlement.amount);
+        } else if (settlement.to_player_id === playerId) {
+          // Player received settlement (negative impact - they were paid out, reducing their net profit)
+          settlementImpact -= parseFloat(settlement.amount);
+        }
+      }
+    }
+
+    // Calculate true net profit (game profits + settlement impact)
+    const trueNetProfit = parseFloat(player[0].net_profit || 0) + settlementImpact;
+
+    res.json({
+      player_id: playerId,
+      game_net_profit: parseFloat(player[0].net_profit || 0),
+      settlement_impact: settlementImpact,
+      true_net_profit: trueNetProfit,
+      settlements_count: settlements?.length || 0
+    });
+  } catch (error) {
+    console.error('Error calculating individual net profit with settlements:', error);
+    res.status(500).json({ error: 'Failed to calculate net profit' });
+  }
+});
+
 app.get('/api/players/net-profit/bulk', async (req, res) => {
   try {
     console.log('💰 Net-profit bulk endpoint called');
