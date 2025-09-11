@@ -31,24 +31,31 @@ const Players: React.FC = () => {
       const data = await apiService.getPlayers();
       setPlayers(data);
       
-      // Fetch true net profit for each player
-      const netProfitData: Record<string, any> = {};
-      for (const player of data) {
-        try {
-          const netProfit = await apiService.getPlayerNetProfit(player.id);
-          netProfitData[player.id] = netProfit;
-        } catch (err) {
-          console.error(`Failed to fetch net profit for player ${player.id}:`, err);
-          // Fallback to game net profit if settlement data fails
+      // Fetch true net profit for all players in a single request
+      try {
+        const netProfitResults = await apiService.getAllPlayersNetProfit();
+        const netProfitData: Record<string, any> = {};
+        
+        // Convert array to object keyed by player_id
+        netProfitResults.forEach(result => {
+          netProfitData[result.player_id] = result;
+        });
+        
+        setPlayerNetProfits(netProfitData);
+      } catch (err) {
+        console.error('Failed to fetch bulk net profit data:', err);
+        // Fallback: create default data for all players
+        const netProfitData: Record<string, any> = {};
+        data.forEach(player => {
           netProfitData[player.id] = {
             game_net_profit: parseFloat(String(player.net_profit || 0)),
             settlement_impact: 0,
             true_net_profit: parseFloat(String(player.net_profit || 0)),
             settlements_count: 0
           };
-        }
+        });
+        setPlayerNetProfits(netProfitData);
       }
-      setPlayerNetProfits(netProfitData);
     } catch (err) {
       setError('Failed to load players');
       console.error('Players error:', err);

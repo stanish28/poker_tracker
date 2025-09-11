@@ -284,4 +284,71 @@ router.get('/:id/net-profit', async (req, res) => {
   }
 });
 
+// Get all players' net profit including settlements (bulk endpoint)
+router.get('/net-profit/bulk', async (req, res) => {
+  try {
+    // Get all players
+    const players = await allQuery(`
+      SELECT 
+        id, name, net_profit, total_games, total_buyins, total_cashouts
+      FROM players 
+      ORDER BY name
+    `);
+
+    // Get all settlements
+    const settlements = await allQuery(`
+      SELECT 
+        from_player_id, to_player_id, amount
+      FROM settlements 
+      ORDER BY created_at DESC
+    `);
+
+    // Group settlements by player
+    const playerSettlements: Record<string, any[]> = {};
+    for (const settlement of settlements) {
+      if (!playerSettlements[settlement.from_player_id]) {
+        playerSettlements[settlement.from_player_id] = [];
+      }
+      if (!playerSettlements[settlement.to_player_id]) {
+        playerSettlements[settlement.to_player_id] = [];
+      }
+      playerSettlements[settlement.from_player_id].push(settlement);
+      playerSettlements[settlement.to_player_id].push(settlement);
+    }
+
+    // Calculate net profit for each player
+    const results = players.map(player => {
+      const playerSettlementList = playerSettlements[player.id] || [];
+      
+      // Calculate settlement impact
+      let settlementImpact = 0;
+      for (const settlement of playerSettlementList) {
+        if (settlement.from_player_id === player.id) {
+          // Player paid settlement (positive impact - they settled their debt, reducing their negative balance)
+          settlementImpact += parseFloat(settlement.amount);
+        } else if (settlement.to_player_id === player.id) {
+          // Player received settlement (negative impact - they were paid out, reducing their net profit)
+          settlementImpact -= parseFloat(settlement.amount);
+        }
+      }
+
+      // Calculate true net profit (game profits + settlement impact)
+      const trueNetProfit = parseFloat(player.net_profit || 0) + settlementImpact;
+
+      return {
+        player_id: player.id,
+        game_net_profit: parseFloat(player.net_profit || 0),
+        settlement_impact: settlementImpact,
+        true_net_profit: trueNetProfit,
+        settlements_count: playerSettlementList.length
+      };
+    });
+
+    res.json(results);
+  } catch (error) {
+    console.error('Error calculating bulk net profit with settlements:', error);
+    res.status(500).json({ error: 'Failed to calculate bulk net profit' });
+  }
+});
+
 module.exports = router;

@@ -182,6 +182,16 @@ class ApiService {
     return this.request(`/players/${playerId}/net-profit`);
   }
 
+  async getAllPlayersNetProfit(): Promise<{
+    player_id: string;
+    game_net_profit: number;
+    settlement_impact: number;
+    true_net_profit: number;
+    settlements_count: number;
+  }[]> {
+    return this.request('/players/net-profit/bulk');
+  }
+
   async createSettlement(settlementData: CreateSettlementRequest): Promise<Settlement> {
     return this.request<Settlement>('/settlements', {
       method: 'POST',
