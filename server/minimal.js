@@ -157,33 +157,38 @@ app.get('/api/players', async (req, res) => {
 
 app.get('/api/players/net-profit/bulk', async (req, res) => {
   try {
-    if (dbInitialized && dbAdapter) {
-      // Use real database data
-      const players = await dbAdapter.allQuery(`
-        SELECT 
-          id, name, net_profit, total_games, total_buyins, total_cashouts
-        FROM players 
-        ORDER BY name
-      `);
+    console.log('💰 Net-profit bulk endpoint called');
+    // Try to get real data from database
+    const players = await queryDatabase(`
+      SELECT 
+        id, name, net_profit, total_games, total_buyins, total_cashouts
+      FROM players 
+      ORDER BY name
+    `);
 
-      const settlements = await dbAdapter.allQuery(`
-        SELECT 
-          from_player_id, to_player_id, amount
-        FROM settlements 
-        ORDER BY created_at DESC
-      `);
+    const settlements = await queryDatabase(`
+      SELECT 
+        from_player_id, to_player_id, amount
+      FROM settlements 
+      ORDER BY created_at DESC
+    `);
+
+    if (players && players.length > 0) {
+      console.log('💰 Found', players.length, 'players and', settlements?.length || 0, 'settlements');
 
       // Group settlements by player
       const playerSettlements = {};
-      for (const settlement of settlements) {
-        if (!playerSettlements[settlement.from_player_id]) {
-          playerSettlements[settlement.from_player_id] = [];
+      if (settlements) {
+        for (const settlement of settlements) {
+          if (!playerSettlements[settlement.from_player_id]) {
+            playerSettlements[settlement.from_player_id] = [];
+          }
+          if (!playerSettlements[settlement.to_player_id]) {
+            playerSettlements[settlement.to_player_id] = [];
+          }
+          playerSettlements[settlement.from_player_id].push(settlement);
+          playerSettlements[settlement.to_player_id].push(settlement);
         }
-        if (!playerSettlements[settlement.to_player_id]) {
-          playerSettlements[settlement.to_player_id] = [];
-        }
-        playerSettlements[settlement.from_player_id].push(settlement);
-        playerSettlements[settlement.to_player_id].push(settlement);
       }
 
       // Calculate net profit for each player
