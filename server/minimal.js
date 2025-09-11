@@ -288,10 +288,10 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
 app.get('/api/games', async (req, res) => {
   try {
     console.log('🎮 Games endpoint called');
-    // Try to get real data from database
+    // Try to get real data from database with correct column names
     const games = await queryDatabase(`
       SELECT 
-        id, date, total_buyins, total_cashouts, player_count, is_completed
+        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
       FROM games 
       ORDER BY date DESC
     `);
@@ -308,7 +308,7 @@ app.get('/api/games', async (req, res) => {
           date: new Date().toISOString(),
           total_buyins: '800.00',
           total_cashouts: '800.00',
-          player_count: 4,
+          discrepancy: '0',
           is_completed: true
         }
       ]);
