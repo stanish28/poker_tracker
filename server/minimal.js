@@ -425,6 +425,33 @@ app.get('/api/games/:gameId/players', async (req, res) => {
   }
 });
 
+// Individual game endpoint
+app.get('/api/games/:id', async (req, res) => {
+  try {
+    const gameId = req.params.id;
+    console.log('🎮 Individual game endpoint called for game:', gameId);
+    
+    // Get game details
+    const game = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
+      FROM games 
+      WHERE id = $1
+    `, [gameId]);
+    
+    if (game && game.length > 0) {
+      console.log('🎮 Found game in database');
+      res.json(game[0]);
+    } else {
+      console.log('🎮 Game not found');
+      res.status(404).json({ error: 'Game not found' });
+    }
+  } catch (error) {
+    console.error('🎮 Error fetching individual game:', error);
+    res.status(500).json({ error: 'Failed to fetch game' });
+  }
+});
+
 // Games endpoints (real data with fallback)
 app.get('/api/games', async (req, res) => {
   try {
