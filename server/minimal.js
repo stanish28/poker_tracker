@@ -179,6 +179,39 @@ app.get('/api/auth/verify', (req, res) => {
   });
 });
 
+// Delete player endpoint
+app.delete('/api/players/:id', async (req, res) => {
+  try {
+    const playerId = req.params.id;
+    console.log('👥 Delete player endpoint called for player:', playerId);
+    
+    // Check if player has game records
+    const gameRecords = await queryDatabase(`
+      SELECT COUNT(*) as count
+      FROM game_players 
+      WHERE player_id = $1
+    `, [playerId]);
+    
+    if (gameRecords && parseInt(gameRecords[0]?.count || 0) > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete player - they have game records. Remove them from all games first, or keep the player for historical data.' 
+      });
+    }
+    
+    // Delete player
+    const result = await queryDatabase(`
+      DELETE FROM players 
+      WHERE id = $1
+    `, [playerId]);
+    
+    console.log('👥 Player deleted successfully');
+    res.json({ message: 'Player deleted successfully' });
+  } catch (error) {
+    console.error('👥 Error deleting player:', error);
+    res.status(500).json({ error: 'Failed to delete player' });
+  }
+});
+
 // Players endpoints (real data with fallback)
 app.get('/api/players', async (req, res) => {
   try {
