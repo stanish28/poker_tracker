@@ -4,54 +4,49 @@ const app = express();
 
 app.use(express.json());
 
-// Initialize database connection (non-blocking)
-let dbInitialized = false;
-let dbAdapter = null;
+// Simple database connection
+let dbPool = null;
 
-async function initializeDatabase() {
-  try {
-    console.log('🔄 Initializing database...');
-    console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-    console.log('NODE_ENV:', process.env.NODE_ENV);
-    console.log('VERCEL:', process.env.VERCEL);
-    
-    // Try direct PostgreSQL connection first
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
-    });
-    
-    // Test connection
-    const client = await pool.connect();
-    const result = await client.query('SELECT NOW()');
-    console.log('✅ Direct database connection successful:', result.rows[0]);
-    client.release();
-    
-    // Now try the adapter
-    const { initializeDatabase: initDB, runQuery, getQuery, allQuery } = require('./database/postgres-adapter');
-    
-    await initDB();
-    dbAdapter = { runQuery, getQuery, allQuery };
-    dbInitialized = true;
-    console.log('✅ Database adapter initialized successfully');
-  } catch (error) {
-    console.error('❌ Database initialization failed:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
-    dbInitialized = false;
+async function getDbPool() {
+  if (!dbPool) {
+    try {
+      const { Pool } = require('pg');
+      dbPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+      console.log('✅ Database pool created');
+    } catch (error) {
+      console.error('❌ Failed to create database pool:', error);
+    }
   }
+  return dbPool;
 }
 
-// Try to initialize database on startup
-initializeDatabase();
+async function queryDatabase(sql, params = []) {
+  try {
+    const pool = await getDbPool();
+    if (!pool) return null;
+    
+    const client = await pool.connect();
+    try {
+      const result = await client.query(sql, params);
+      return result.rows;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('❌ Database query failed:', error);
+    return null;
+  }
+}
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    database_initialized: dbInitialized
+    database_pool: !!dbPool
   });
 });
 
@@ -59,19 +54,14 @@ app.get('/api/health', (req, res) => {
 app.get('/api/db-test', async (req, res) => {
   try {
     console.log('🧪 DB Test endpoint called');
-    console.log('🧪 dbInitialized:', dbInitialized);
-    console.log('🧪 dbAdapter:', !!dbAdapter);
     
-    if (dbInitialized && dbAdapter) {
-      console.log('🧪 Testing database queries...');
-      
-      // Test players query
-      const players = await dbAdapter.allQuery('SELECT COUNT(*) as count FROM players');
-      console.log('🧪 Players count:', players);
-      
-      // Test games query
-      const games = await dbAdapter.allQuery('SELECT COUNT(*) as count FROM games');
-      console.log('🧪 Games count:', games);
+    // Test direct database connection
+    const players = await queryDatabase('SELECT COUNT(*) as count FROM players');
+    const games = await queryDatabase('SELECT COUNT(*) as count FROM games');
+    
+    if (players && games) {
+      console.log('🧪 Players count:', players[0]?.count || 0);
+      console.log('🧪 Games count:', games[0]?.count || 0);
       
       res.json({
         status: 'OK',
@@ -83,8 +73,7 @@ app.get('/api/db-test', async (req, res) => {
       res.json({
         status: 'ERROR',
         database_working: false,
-        dbInitialized,
-        dbAdapter: !!dbAdapter
+        error: 'Failed to query database'
       });
     }
   } catch (error) {
@@ -116,14 +105,17 @@ app.get('/api/auth/verify', (req, res) => {
 // Players endpoints (real data with fallback)
 app.get('/api/players', async (req, res) => {
   try {
-    if (dbInitialized && dbAdapter) {
-      // Use real database data
-      const players = await dbAdapter.allQuery(`
-        SELECT 
-          id, name, net_profit, total_games, total_buyins, total_cashouts, created_at
-        FROM players 
-        ORDER BY name
-      `);
+    console.log('👥 Players endpoint called');
+    // Try to get real data from database
+    const players = await queryDatabase(`
+      SELECT 
+        id, name, net_profit, total_games, total_buyins, total_cashouts, created_at
+      FROM players 
+      ORDER BY name
+    `);
+    
+    if (players && players.length > 0) {
+      console.log('👥 Found', players.length, 'players in database');
       res.json(players);
     } else {
       // Fallback to mock data - using your actual player names
@@ -260,20 +252,20 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
 // Games endpoints (real data with fallback)
 app.get('/api/games', async (req, res) => {
   try {
-    console.log('🎮 Games endpoint called - dbInitialized:', dbInitialized);
-    if (dbInitialized && dbAdapter) {
-      console.log('🎮 Attempting to fetch games from database...');
-      // Use real database data
-      const games = await dbAdapter.allQuery(`
-        SELECT 
-          id, date, total_buyins, total_cashouts, player_count, is_completed
-        FROM games 
-        ORDER BY date DESC
-      `);
-      console.log('🎮 Games fetched from database:', games.length, 'games');
+    console.log('🎮 Games endpoint called');
+    // Try to get real data from database
+    const games = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, player_count, is_completed
+      FROM games 
+      ORDER BY date DESC
+    `);
+    
+    if (games && games.length > 0) {
+      console.log('🎮 Found', games.length, 'games in database');
       res.json(games);
     } else {
-      console.log('🎮 Using mock data - dbInitialized:', dbInitialized, 'dbAdapter:', !!dbAdapter);
+      console.log('🎮 No games found, using mock data');
       // Fallback to mock data
       res.json([
         {
