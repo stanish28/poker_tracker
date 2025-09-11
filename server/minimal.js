@@ -425,7 +425,7 @@ app.get('/api/games/:gameId/players', async (req, res) => {
   }
 });
 
-// Individual game endpoint
+// Individual game endpoint with players
 app.get('/api/games/:id', async (req, res) => {
   try {
     const gameId = req.params.id;
@@ -441,7 +441,29 @@ app.get('/api/games/:id', async (req, res) => {
     
     if (game && game.length > 0) {
       console.log('🎮 Found game in database');
-      res.json(game[0]);
+      
+      // Get game players
+      const gamePlayers = await queryDatabase(`
+        SELECT 
+          gp.id,
+          gp.player_id,
+          gp.buyin,
+          gp.cashout,
+          gp.profit,
+          p.name as player_name
+        FROM game_players gp
+        JOIN players p ON gp.player_id = p.id
+        WHERE gp.game_id = $1
+        ORDER BY p.name
+      `, [gameId]);
+      
+      // Combine game data with players
+      const gameWithPlayers = {
+        ...game[0],
+        players: gamePlayers || []
+      };
+      
+      res.json(gameWithPlayers);
     } else {
       console.log('🎮 Game not found');
       res.status(404).json({ error: 'Game not found' });
