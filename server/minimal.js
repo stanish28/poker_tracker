@@ -112,26 +112,35 @@ app.get('/api/players', async (req, res) => {
       `);
       res.json(players);
     } else {
-      // Fallback to mock data
+      // Fallback to mock data - using your actual player names
       res.json([
-        {
-          id: '1',
-          name: 'Player 1',
-          net_profit: '100.00',
-          total_games: 5,
-          total_buyins: '500.00',
-          total_cashouts: '600.00',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: '2',
-          name: 'Player 2',
-          net_profit: '-50.00',
-          total_games: 3,
-          total_buyins: '300.00',
-          total_cashouts: '250.00',
-          created_at: new Date().toISOString()
-        }
+        { id: '1', name: 'Ishan', net_profit: '150.00', total_games: 8, total_buyins: '800.00', total_cashouts: '950.00', created_at: new Date().toISOString() },
+        { id: '2', name: 'Pranav', net_profit: '-75.00', total_games: 6, total_buyins: '600.00', total_cashouts: '525.00', created_at: new Date().toISOString() },
+        { id: '3', name: 'Soni', net_profit: '200.00', total_games: 10, total_buyins: '1000.00', total_cashouts: '1200.00', created_at: new Date().toISOString() },
+        { id: '4', name: 'Tanish', net_profit: '-50.00', total_games: 4, total_buyins: '400.00', total_cashouts: '350.00', created_at: new Date().toISOString() },
+        { id: '5', name: 'Bagree', net_profit: '100.00', total_games: 7, total_buyins: '700.00', total_cashouts: '800.00', created_at: new Date().toISOString() },
+        { id: '6', name: 'Nikunj', net_profit: '-25.00', total_games: 3, total_buyins: '300.00', total_cashouts: '275.00', created_at: new Date().toISOString() },
+        { id: '7', name: 'Jayeesh', net_profit: '75.00', total_games: 5, total_buyins: '500.00', total_cashouts: '575.00', created_at: new Date().toISOString() },
+        { id: '8', name: 'Akhil', net_profit: '-100.00', total_games: 6, total_buyins: '600.00', total_cashouts: '500.00', created_at: new Date().toISOString() },
+        { id: '9', name: 'Arjun', net_profit: '125.00', total_games: 9, total_buyins: '900.00', total_cashouts: '1025.00', created_at: new Date().toISOString() },
+        { id: '10', name: 'Archit', net_profit: '50.00', total_games: 4, total_buyins: '400.00', total_cashouts: '450.00', created_at: new Date().toISOString() },
+        { id: '11', name: 'Arnav', net_profit: '-75.00', total_games: 5, total_buyins: '500.00', total_cashouts: '425.00', created_at: new Date().toISOString() },
+        { id: '12', name: 'Vansh', net_profit: '175.00', total_games: 8, total_buyins: '800.00', total_cashouts: '975.00', created_at: new Date().toISOString() },
+        { id: '13', name: 'Prabal', net_profit: '-50.00', total_games: 3, total_buyins: '300.00', total_cashouts: '250.00', created_at: new Date().toISOString() },
+        { id: '14', name: 'Gurshan', net_profit: '100.00', total_games: 7, total_buyins: '700.00', total_cashouts: '800.00', created_at: new Date().toISOString() },
+        { id: '15', name: 'Heaansh', net_profit: '-25.00', total_games: 4, total_buyins: '400.00', total_cashouts: '375.00', created_at: new Date().toISOString() },
+        { id: '16', name: 'Neal', net_profit: '75.00', total_games: 6, total_buyins: '600.00', total_cashouts: '675.00', created_at: new Date().toISOString() },
+        { id: '17', name: 'Manny', net_profit: '-100.00', total_games: 5, total_buyins: '500.00', total_cashouts: '400.00', created_at: new Date().toISOString() },
+        { id: '18', name: 'Karan', net_profit: '150.00', total_games: 9, total_buyins: '900.00', total_cashouts: '1050.00', created_at: new Date().toISOString() },
+        { id: '19', name: 'Ishan Shetty', net_profit: '50.00', total_games: 4, total_buyins: '400.00', total_cashouts: '450.00', created_at: new Date().toISOString() },
+        { id: '20', name: 'Kedia', net_profit: '-75.00', total_games: 6, total_buyins: '600.00', total_cashouts: '525.00', created_at: new Date().toISOString() },
+        { id: '21', name: 'Mohit', net_profit: '125.00', total_games: 8, total_buyins: '800.00', total_cashouts: '925.00', created_at: new Date().toISOString() },
+        { id: '22', name: 'Vince', net_profit: '-50.00', total_games: 3, total_buyins: '300.00', total_cashouts: '250.00', created_at: new Date().toISOString() },
+        { id: '23', name: 'Varshney', net_profit: '100.00', total_games: 7, total_buyins: '700.00', total_cashouts: '800.00', created_at: new Date().toISOString() },
+        { id: '24', name: 'Manit', net_profit: '-25.00', total_games: 4, total_buyins: '400.00', total_cashouts: '375.00', created_at: new Date().toISOString() },
+        { id: '25', name: 'Vashney', net_profit: '75.00', total_games: 6, total_buyins: '600.00', total_cashouts: '675.00', created_at: new Date().toISOString() },
+        { id: '26', name: 'Nivan', net_profit: '-100.00', total_games: 5, total_buyins: '500.00', total_cashouts: '400.00', created_at: new Date().toISOString() },
+        { id: '27', name: 'House', net_profit: '200.00', total_games: 10, total_buyins: '1000.00', total_cashouts: '1200.00', created_at: new Date().toISOString() }
       ]);
     }
   } catch (error) {
@@ -197,22 +206,35 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
 
       res.json(results);
     } else {
-      // Fallback to mock data
+      // Fallback to mock data - matching the 27 players
       res.json([
-        {
-          player_id: '1',
-          game_net_profit: 100.00,
-          settlement_impact: 0,
-          true_net_profit: 100.00,
-          settlements_count: 0
-        },
-        {
-          player_id: '2',
-          game_net_profit: -50.00,
-          settlement_impact: 0,
-          true_net_profit: -50.00,
-          settlements_count: 0
-        }
+        { player_id: '1', game_net_profit: 150.00, settlement_impact: 0, true_net_profit: 150.00, settlements_count: 0 },
+        { player_id: '2', game_net_profit: -75.00, settlement_impact: 0, true_net_profit: -75.00, settlements_count: 0 },
+        { player_id: '3', game_net_profit: 200.00, settlement_impact: 0, true_net_profit: 200.00, settlements_count: 0 },
+        { player_id: '4', game_net_profit: -50.00, settlement_impact: 0, true_net_profit: -50.00, settlements_count: 0 },
+        { player_id: '5', game_net_profit: 100.00, settlement_impact: 0, true_net_profit: 100.00, settlements_count: 0 },
+        { player_id: '6', game_net_profit: -25.00, settlement_impact: 0, true_net_profit: -25.00, settlements_count: 0 },
+        { player_id: '7', game_net_profit: 75.00, settlement_impact: 0, true_net_profit: 75.00, settlements_count: 0 },
+        { player_id: '8', game_net_profit: -100.00, settlement_impact: 0, true_net_profit: -100.00, settlements_count: 0 },
+        { player_id: '9', game_net_profit: 125.00, settlement_impact: 0, true_net_profit: 125.00, settlements_count: 0 },
+        { player_id: '10', game_net_profit: 50.00, settlement_impact: 0, true_net_profit: 50.00, settlements_count: 0 },
+        { player_id: '11', game_net_profit: -75.00, settlement_impact: 0, true_net_profit: -75.00, settlements_count: 0 },
+        { player_id: '12', game_net_profit: 175.00, settlement_impact: 0, true_net_profit: 175.00, settlements_count: 0 },
+        { player_id: '13', game_net_profit: -50.00, settlement_impact: 0, true_net_profit: -50.00, settlements_count: 0 },
+        { player_id: '14', game_net_profit: 100.00, settlement_impact: 0, true_net_profit: 100.00, settlements_count: 0 },
+        { player_id: '15', game_net_profit: -25.00, settlement_impact: 0, true_net_profit: -25.00, settlements_count: 0 },
+        { player_id: '16', game_net_profit: 75.00, settlement_impact: 0, true_net_profit: 75.00, settlements_count: 0 },
+        { player_id: '17', game_net_profit: -100.00, settlement_impact: 0, true_net_profit: -100.00, settlements_count: 0 },
+        { player_id: '18', game_net_profit: 150.00, settlement_impact: 0, true_net_profit: 150.00, settlements_count: 0 },
+        { player_id: '19', game_net_profit: 50.00, settlement_impact: 0, true_net_profit: 50.00, settlements_count: 0 },
+        { player_id: '20', game_net_profit: -75.00, settlement_impact: 0, true_net_profit: -75.00, settlements_count: 0 },
+        { player_id: '21', game_net_profit: 125.00, settlement_impact: 0, true_net_profit: 125.00, settlements_count: 0 },
+        { player_id: '22', game_net_profit: -50.00, settlement_impact: 0, true_net_profit: -50.00, settlements_count: 0 },
+        { player_id: '23', game_net_profit: 100.00, settlement_impact: 0, true_net_profit: 100.00, settlements_count: 0 },
+        { player_id: '24', game_net_profit: -25.00, settlement_impact: 0, true_net_profit: -25.00, settlements_count: 0 },
+        { player_id: '25', game_net_profit: 75.00, settlement_impact: 0, true_net_profit: 75.00, settlements_count: 0 },
+        { player_id: '26', game_net_profit: -100.00, settlement_impact: 0, true_net_profit: -100.00, settlements_count: 0 },
+        { player_id: '27', game_net_profit: 200.00, settlement_impact: 0, true_net_profit: 200.00, settlements_count: 0 }
       ]);
     }
   } catch (error) {
