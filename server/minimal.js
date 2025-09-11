@@ -394,12 +394,13 @@ app.get('/api/games/:gameId/players', async (req, res) => {
     const gameId = req.params.gameId;
     console.log('🎮 Game players endpoint called for game:', gameId);
     
-    // Get game player details
+    // Get game player details with correct column names
     const gamePlayers = await queryDatabase(`
       SELECT 
         gp.player_id,
-        gp.buy_in,
-        gp.cash_out,
+        gp.buyin,
+        gp.cashout,
+        gp.profit,
         p.name as player_name
       FROM game_players gp
       JOIN players p ON gp.player_id = p.id
