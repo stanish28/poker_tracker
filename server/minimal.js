@@ -41,6 +41,48 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Database test endpoint
+app.get('/api/db-test', async (req, res) => {
+  try {
+    console.log('🧪 DB Test endpoint called');
+    console.log('🧪 dbInitialized:', dbInitialized);
+    console.log('🧪 dbAdapter:', !!dbAdapter);
+    
+    if (dbInitialized && dbAdapter) {
+      console.log('🧪 Testing database queries...');
+      
+      // Test players query
+      const players = await dbAdapter.allQuery('SELECT COUNT(*) as count FROM players');
+      console.log('🧪 Players count:', players);
+      
+      // Test games query
+      const games = await dbAdapter.allQuery('SELECT COUNT(*) as count FROM games');
+      console.log('🧪 Games count:', games);
+      
+      res.json({
+        status: 'OK',
+        database_working: true,
+        players_count: players[0]?.count || 0,
+        games_count: games[0]?.count || 0
+      });
+    } else {
+      res.json({
+        status: 'ERROR',
+        database_working: false,
+        dbInitialized,
+        dbAdapter: !!dbAdapter
+      });
+    }
+  } catch (error) {
+    console.error('🧪 DB Test error:', error);
+    res.json({
+      status: 'ERROR',
+      database_working: false,
+      error: error.message
+    });
+  }
+});
+
 // Simple auth endpoint
 app.post('/api/auth/login', (req, res) => {
   res.json({ 
