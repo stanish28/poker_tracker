@@ -86,6 +86,36 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
+// Games debug endpoint
+app.get('/api/games-debug', async (req, res) => {
+  try {
+    console.log('🎮 Games debug endpoint called');
+    
+    // Test the exact games query
+    const games = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, player_count, is_completed
+      FROM games 
+      ORDER BY date DESC
+    `);
+    
+    console.log('🎮 Games query result:', games);
+    console.log('🎮 Games length:', games?.length || 0);
+    
+    res.json({
+      status: 'OK',
+      games_found: games?.length || 0,
+      games: games || []
+    });
+  } catch (error) {
+    console.error('🎮 Games debug error:', error);
+    res.json({
+      status: 'ERROR',
+      error: error.message
+    });
+  }
+});
+
 // Simple auth endpoint
 app.post('/api/auth/login', (req, res) => {
   res.json({ 
