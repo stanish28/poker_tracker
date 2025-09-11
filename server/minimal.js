@@ -241,7 +241,7 @@ app.get('/api/players/:id/net-profit', async (req, res) => {
     // Get basic player info
     const player = await queryDatabase(`
       SELECT 
-        id, name, net_profit, total_games, total_buyins, total_cashouts
+        id, name
       FROM players 
       WHERE id = $1
     `, [playerId]);
@@ -249,6 +249,20 @@ app.get('/api/players/:id/net-profit', async (req, res) => {
     if (!player || player.length === 0) {
       return res.status(404).json({ error: 'Player not found' });
     }
+
+    // Calculate game net profit from game_players table (PERMANENT FIX)
+    const gameStats = await queryDatabase(`
+      SELECT 
+        COALESCE(SUM(buyin), 0) as total_buyins,
+        COALESCE(SUM(cashout), 0) as total_cashouts,
+        COUNT(*) as games_played
+      FROM game_players 
+      WHERE player_id = $1
+    `, [playerId]);
+
+    const totalBuyins = parseFloat(gameStats?.[0]?.total_buyins || 0);
+    const totalCashouts = parseFloat(gameStats?.[0]?.total_cashouts || 0);
+    const gameNetProfit = totalCashouts - totalBuyins;
 
     // Get settlements where this player is involved
     const settlements = await queryDatabase(`
@@ -264,21 +278,21 @@ app.get('/api/players/:id/net-profit', async (req, res) => {
     if (settlements) {
       for (const settlement of settlements) {
         if (settlement.from_player_id === playerId) {
-          // Player paid settlement (positive impact - they settled their debt, reducing their negative balance)
+          // Player paid settlement (positive impact - they settled their debt)
           settlementImpact += parseFloat(settlement.amount);
         } else if (settlement.to_player_id === playerId) {
-          // Player received settlement (negative impact - they were paid out, reducing their net profit)
+          // Player received settlement (negative impact - they were paid out)
           settlementImpact -= parseFloat(settlement.amount);
         }
       }
     }
 
     // Calculate true net profit (game profits + settlement impact)
-    const trueNetProfit = parseFloat(player[0].net_profit || 0) + settlementImpact;
+    const trueNetProfit = gameNetProfit + settlementImpact;
 
     res.json({
       player_id: playerId,
-      game_net_profit: parseFloat(player[0].net_profit || 0),
+      game_net_profit: gameNetProfit,
       settlement_impact: settlementImpact,
       true_net_profit: trueNetProfit,
       settlements_count: settlements?.length || 0
@@ -292,14 +306,16 @@ app.get('/api/players/:id/net-profit', async (req, res) => {
 app.get('/api/players/net-profit/bulk', async (req, res) => {
   try {
     console.log('💰 Net-profit bulk endpoint called');
-    // Try to get real data from database
+    
+    // Get all players
     const players = await queryDatabase(`
       SELECT 
-        id, name, net_profit, total_games, total_buyins, total_cashouts
+        id, name
       FROM players 
       ORDER BY name
     `);
 
+    // Get all settlements
     const settlements = await queryDatabase(`
       SELECT 
         from_player_id, to_player_id, amount
@@ -325,62 +341,50 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
         }
       }
 
-      // Calculate net profit for each player
-      const results = players.map(player => {
+      // Calculate net profit for each player from actual game data
+      const results = await Promise.all(players.map(async (player) => {
+        // Calculate game net profit from game_players table (PERMANENT FIX)
+        const gameStats = await queryDatabase(`
+          SELECT 
+            COALESCE(SUM(buyin), 0) as total_buyins,
+            COALESCE(SUM(cashout), 0) as total_cashouts,
+            COUNT(*) as games_played
+          FROM game_players 
+          WHERE player_id = $1
+        `, [player.id]);
+
+        const totalBuyins = parseFloat(gameStats?.[0]?.total_buyins || 0);
+        const totalCashouts = parseFloat(gameStats?.[0]?.total_cashouts || 0);
+        const gameNetProfit = totalCashouts - totalBuyins;
+
+        // Calculate settlement impact
         const playerSettlementList = playerSettlements[player.id] || [];
-        
         let settlementImpact = 0;
         for (const settlement of playerSettlementList) {
           if (settlement.from_player_id === player.id) {
+            // Player paid settlement (positive impact - they settled their debt)
             settlementImpact += parseFloat(settlement.amount);
           } else if (settlement.to_player_id === player.id) {
+            // Player received settlement (negative impact - they were paid out)
             settlementImpact -= parseFloat(settlement.amount);
           }
         }
 
-        const trueNetProfit = parseFloat(player.net_profit || 0) + settlementImpact;
+        const trueNetProfit = gameNetProfit + settlementImpact;
 
         return {
           player_id: player.id,
-          game_net_profit: parseFloat(player.net_profit || 0),
+          game_net_profit: gameNetProfit,
           settlement_impact: settlementImpact,
           true_net_profit: trueNetProfit,
           settlements_count: playerSettlementList.length
         };
-      });
+      }));
 
       res.json(results);
     } else {
-      // Fallback to mock data - matching the 27 players
-      res.json([
-        { player_id: '1', game_net_profit: 150.00, settlement_impact: 0, true_net_profit: 150.00, settlements_count: 0 },
-        { player_id: '2', game_net_profit: -75.00, settlement_impact: 0, true_net_profit: -75.00, settlements_count: 0 },
-        { player_id: '3', game_net_profit: 200.00, settlement_impact: 0, true_net_profit: 200.00, settlements_count: 0 },
-        { player_id: '4', game_net_profit: -50.00, settlement_impact: 0, true_net_profit: -50.00, settlements_count: 0 },
-        { player_id: '5', game_net_profit: 100.00, settlement_impact: 0, true_net_profit: 100.00, settlements_count: 0 },
-        { player_id: '6', game_net_profit: -25.00, settlement_impact: 0, true_net_profit: -25.00, settlements_count: 0 },
-        { player_id: '7', game_net_profit: 75.00, settlement_impact: 0, true_net_profit: 75.00, settlements_count: 0 },
-        { player_id: '8', game_net_profit: -100.00, settlement_impact: 0, true_net_profit: -100.00, settlements_count: 0 },
-        { player_id: '9', game_net_profit: 125.00, settlement_impact: 0, true_net_profit: 125.00, settlements_count: 0 },
-        { player_id: '10', game_net_profit: 50.00, settlement_impact: 0, true_net_profit: 50.00, settlements_count: 0 },
-        { player_id: '11', game_net_profit: -75.00, settlement_impact: 0, true_net_profit: -75.00, settlements_count: 0 },
-        { player_id: '12', game_net_profit: 175.00, settlement_impact: 0, true_net_profit: 175.00, settlements_count: 0 },
-        { player_id: '13', game_net_profit: -50.00, settlement_impact: 0, true_net_profit: -50.00, settlements_count: 0 },
-        { player_id: '14', game_net_profit: 100.00, settlement_impact: 0, true_net_profit: 100.00, settlements_count: 0 },
-        { player_id: '15', game_net_profit: -25.00, settlement_impact: 0, true_net_profit: -25.00, settlements_count: 0 },
-        { player_id: '16', game_net_profit: 75.00, settlement_impact: 0, true_net_profit: 75.00, settlements_count: 0 },
-        { player_id: '17', game_net_profit: -100.00, settlement_impact: 0, true_net_profit: -100.00, settlements_count: 0 },
-        { player_id: '18', game_net_profit: 150.00, settlement_impact: 0, true_net_profit: 150.00, settlements_count: 0 },
-        { player_id: '19', game_net_profit: 50.00, settlement_impact: 0, true_net_profit: 50.00, settlements_count: 0 },
-        { player_id: '20', game_net_profit: -75.00, settlement_impact: 0, true_net_profit: -75.00, settlements_count: 0 },
-        { player_id: '21', game_net_profit: 125.00, settlement_impact: 0, true_net_profit: 125.00, settlements_count: 0 },
-        { player_id: '22', game_net_profit: -50.00, settlement_impact: 0, true_net_profit: -50.00, settlements_count: 0 },
-        { player_id: '23', game_net_profit: 100.00, settlement_impact: 0, true_net_profit: 100.00, settlements_count: 0 },
-        { player_id: '24', game_net_profit: -25.00, settlement_impact: 0, true_net_profit: -25.00, settlements_count: 0 },
-        { player_id: '25', game_net_profit: 75.00, settlement_impact: 0, true_net_profit: 75.00, settlements_count: 0 },
-        { player_id: '26', game_net_profit: -100.00, settlement_impact: 0, true_net_profit: -100.00, settlements_count: 0 },
-        { player_id: '27', game_net_profit: 200.00, settlement_impact: 0, true_net_profit: 200.00, settlements_count: 0 }
-      ]);
+      // Fallback to mock data if no players found
+      res.json([]);
     }
   } catch (error) {
     console.error('Error fetching bulk net profit:', error);
