@@ -15,12 +15,26 @@ async function initializeDatabase() {
     console.log('NODE_ENV:', process.env.NODE_ENV);
     console.log('VERCEL:', process.env.VERCEL);
     
+    // Try direct PostgreSQL connection first
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+    
+    // Test connection
+    const client = await pool.connect();
+    const result = await client.query('SELECT NOW()');
+    console.log('✅ Direct database connection successful:', result.rows[0]);
+    client.release();
+    
+    // Now try the adapter
     const { initializeDatabase: initDB, runQuery, getQuery, allQuery } = require('./database/postgres-adapter');
     
     await initDB();
     dbAdapter = { runQuery, getQuery, allQuery };
     dbInitialized = true;
-    console.log('✅ Database initialized successfully');
+    console.log('✅ Database adapter initialized successfully');
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
     console.error('Error details:', error.message);
