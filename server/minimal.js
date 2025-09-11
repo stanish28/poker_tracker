@@ -179,6 +179,32 @@ app.get('/api/auth/verify', (req, res) => {
   });
 });
 
+// Update player endpoint
+app.put('/api/players/:id', async (req, res) => {
+  try {
+    const playerId = req.params.id;
+    const { name } = req.body;
+    console.log('👥 Update player endpoint called for player:', playerId, 'new name:', name);
+    
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ error: 'Player name is required' });
+    }
+    
+    // Update player name
+    const result = await queryDatabase(`
+      UPDATE players 
+      SET name = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [name.trim(), playerId]);
+    
+    console.log('👥 Player updated successfully');
+    res.json({ message: 'Player updated successfully' });
+  } catch (error) {
+    console.error('👥 Error updating player:', error);
+    res.status(500).json({ error: 'Failed to update player' });
+  }
+});
+
 // Delete player endpoint
 app.delete('/api/players/:id', async (req, res) => {
   try {
