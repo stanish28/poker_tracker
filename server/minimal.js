@@ -569,6 +569,71 @@ app.get('/api/games', async (req, res) => {
   }
 });
 
+// Create new game endpoint
+app.post('/api/games', async (req, res) => {
+  try {
+    const { date, players, totalBuyins, totalCashouts, discrepancy } = req.body;
+    console.log('🎮 Create game endpoint called with players:', players?.length || 0);
+    
+    if (!players || players.length === 0) {
+      return res.status(400).json({ error: 'At least one player is required' });
+    }
+    
+    if (!date) {
+      return res.status(400).json({ error: 'Game date is required' });
+    }
+    
+    // Start transaction by creating the game first
+    const gameId = require('crypto').randomUUID();
+    const gameResult = await queryDatabase(`
+      INSERT INTO games (id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW())
+    `, [gameId, date, totalBuyins || '0', totalCashouts || '0', discrepancy || '0']);
+    
+    if (!gameResult) {
+      return res.status(500).json({ error: 'Failed to create game' });
+    }
+    
+    console.log('🎮 Game created with ID:', gameId);
+    
+    // Add players to the game
+    for (const player of players) {
+      const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
+      
+      await queryDatabase(`
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      `, [
+        require('crypto').randomUUID(),
+        gameId,
+        player.id,
+        player.buyin || '0',
+        player.cashout || '0',
+        profit.toString()
+      ]);
+    }
+    
+    console.log('🎮 Game and players created successfully');
+    
+    // Return the created game
+    const createdGame = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
+      FROM games 
+      WHERE id = $1
+    `, [gameId]);
+    
+    if (createdGame && createdGame.length > 0) {
+      res.status(201).json(createdGame[0]);
+    } else {
+      res.status(201).json({ id: gameId, message: 'Game created successfully' });
+    }
+  } catch (error) {
+    console.error('🎮 Error creating game:', error);
+    res.status(500).json({ error: 'Failed to create game' });
+  }
+});
+
 app.get('/api/games/stats/overview', async (req, res) => {
   try {
     console.log('📊 Games stats endpoint called');
