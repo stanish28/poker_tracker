@@ -2,6 +2,8 @@ const express = require('express');
 
 const app = express();
 
+// Force redeploy - version 1.0.2
+
 app.use(express.json());
 
 // Simple database connection
