@@ -46,7 +46,8 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    database_pool: !!dbPool
+    database_pool: !!dbPool,
+    version: '1.0.1'
   });
 });
 
