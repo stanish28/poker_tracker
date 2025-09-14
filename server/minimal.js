@@ -672,12 +672,15 @@ app.get('/api/games/:id', async (req, res) => {
 app.get('/api/games', async (req, res) => {
   try {
     console.log('🎮 Games endpoint called');
-    // Try to get real data from database with correct column names
+    // Try to get real data from database with player count
     const games = await queryDatabase(`
       SELECT 
-        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
-      FROM games 
-      ORDER BY date DESC
+        g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, g.is_completed, g.created_at, g.updated_at,
+        COALESCE(COUNT(gp.player_id), 0) as player_count
+      FROM games g
+      LEFT JOIN game_players gp ON g.id = gp.game_id
+      GROUP BY g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, g.is_completed, g.created_at, g.updated_at
+      ORDER BY g.date DESC
     `);
     
     if (games && games.length > 0) {
@@ -693,7 +696,8 @@ app.get('/api/games', async (req, res) => {
           total_buyins: '800.00',
           total_cashouts: '800.00',
           discrepancy: '0',
-          is_completed: true
+          is_completed: true,
+          player_count: 4
         }
       ]);
     }
