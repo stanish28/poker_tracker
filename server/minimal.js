@@ -638,6 +638,34 @@ app.get('/api/games/:id', async (req, res) => {
   }
 });
 
+// Delete game endpoint
+app.delete('/api/games/:id', async (req, res) => {
+  try {
+    const gameId = req.params.id;
+    console.log('🎮 Delete game endpoint called for game:', gameId);
+    
+    // First, delete all game_players records for this game
+    await queryDatabase(`
+      DELETE FROM game_players 
+      WHERE game_id = $1
+    `, [gameId]);
+    
+    console.log('🎮 Deleted game players for game:', gameId);
+    
+    // Then delete the game itself
+    await queryDatabase(`
+      DELETE FROM games 
+      WHERE id = $1
+    `, [gameId]);
+    
+    console.log('🎮 Game deleted successfully:', gameId);
+    res.json({ message: 'Game deleted successfully' });
+  } catch (error) {
+    console.error('🎮 Error deleting game:', error);
+    res.status(500).json({ error: 'Failed to delete game' });
+  }
+});
+
 // Games endpoints (real data with fallback)
 app.get('/api/games', async (req, res) => {
   try {
