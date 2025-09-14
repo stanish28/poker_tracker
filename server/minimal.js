@@ -484,6 +484,111 @@ app.get('/api/games/:gameId/players', async (req, res) => {
   }
 });
 
+// Add players to existing game endpoint
+app.post('/api/games/:gameId/players', async (req, res) => {
+  try {
+    const gameId = req.params.gameId;
+    const { players } = req.body;
+    console.log('🎮 Add players to game endpoint called for game:', gameId, 'with', players?.length || 0, 'players');
+    
+    if (!players || players.length === 0) {
+      return res.status(400).json({ error: 'At least one player is required' });
+    }
+    
+    // Add each player to the game
+    for (const player of players) {
+      const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
+      
+      console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
+      
+      await queryDatabase(`
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      `, [
+        require('crypto').randomUUID(),
+        gameId,
+        player.player_id,
+        player.buyin.toString(),
+        player.cashout.toString(),
+        profit.toString()
+      ]);
+    }
+    
+    // Update game totals
+    const gameStats = await queryDatabase(`
+      SELECT 
+        COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+        COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts
+      FROM game_players 
+      WHERE game_id = $1
+    `, [gameId]);
+    
+    if (gameStats && gameStats.length > 0) {
+      const totalBuyins = gameStats[0].total_buyins;
+      const totalCashouts = gameStats[0].total_cashouts;
+      const discrepancy = parseFloat(totalCashouts) - parseFloat(totalBuyins);
+      
+      await queryDatabase(`
+        UPDATE games 
+        SET total_buyins = $1, total_cashouts = $2, discrepancy = $3, updated_at = NOW()
+        WHERE id = $4
+      `, [totalBuyins, totalCashouts, discrepancy.toString(), gameId]);
+    }
+    
+    console.log('🎮 Players added to game successfully');
+    res.json({ message: 'Players added successfully' });
+  } catch (error) {
+    console.error('🎮 Error adding players to game:', error);
+    res.status(500).json({ error: 'Failed to add players to game' });
+  }
+});
+
+// Update player amounts in game endpoint
+app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
+  try {
+    const gameId = req.params.gameId;
+    const playerId = req.params.playerId;
+    const { buyin, cashout } = req.body;
+    console.log('🎮 Update player amounts endpoint called for game:', gameId, 'player:', playerId);
+    
+    const profit = parseFloat(cashout || 0) - parseFloat(buyin || 0);
+    
+    // Update player amounts
+    await queryDatabase(`
+      UPDATE game_players 
+      SET buyin = $1, cashout = $2, profit = $3, updated_at = NOW()
+      WHERE game_id = $4 AND player_id = $5
+    `, [buyin.toString(), cashout.toString(), profit.toString(), gameId, playerId]);
+    
+    // Update game totals
+    const gameStats = await queryDatabase(`
+      SELECT 
+        COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+        COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts
+      FROM game_players 
+      WHERE game_id = $1
+    `, [gameId]);
+    
+    if (gameStats && gameStats.length > 0) {
+      const totalBuyins = gameStats[0].total_buyins;
+      const totalCashouts = gameStats[0].total_cashouts;
+      const discrepancy = parseFloat(totalCashouts) - parseFloat(totalBuyins);
+      
+      await queryDatabase(`
+        UPDATE games 
+        SET total_buyins = $1, total_cashouts = $2, discrepancy = $3, updated_at = NOW()
+        WHERE id = $4
+      `, [totalBuyins, totalCashouts, discrepancy.toString(), gameId]);
+    }
+    
+    console.log('🎮 Player amounts updated successfully');
+    res.json({ message: 'Player amounts updated successfully' });
+  } catch (error) {
+    console.error('🎮 Error updating player amounts:', error);
+    res.status(500).json({ error: 'Failed to update player amounts' });
+  }
+});
+
 // Individual game endpoint with players
 app.get('/api/games/:id', async (req, res) => {
   try {
@@ -572,8 +677,9 @@ app.get('/api/games', async (req, res) => {
 // Create new game endpoint
 app.post('/api/games', async (req, res) => {
   try {
-    const { date, players, totalBuyins, totalCashouts, discrepancy } = req.body;
+    const { date, players } = req.body;
     console.log('🎮 Create game endpoint called with players:', players?.length || 0);
+    console.log('🎮 Request body:', JSON.stringify(req.body, null, 2));
     
     if (!players || players.length === 0) {
       return res.status(400).json({ error: 'At least one player is required' });
@@ -583,22 +689,35 @@ app.post('/api/games', async (req, res) => {
       return res.status(400).json({ error: 'Game date is required' });
     }
     
+    // Calculate totals from player data
+    let totalBuyins = 0;
+    let totalCashouts = 0;
+    
+    for (const player of players) {
+      totalBuyins += parseFloat(player.buyin || 0);
+      totalCashouts += parseFloat(player.cashout || 0);
+    }
+    
+    const discrepancy = totalCashouts - totalBuyins;
+    
     // Start transaction by creating the game first
     const gameId = require('crypto').randomUUID();
     const gameResult = await queryDatabase(`
       INSERT INTO games (id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at)
       VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW())
-    `, [gameId, date, totalBuyins || '0', totalCashouts || '0', discrepancy || '0']);
+    `, [gameId, date, totalBuyins.toString(), totalCashouts.toString(), discrepancy.toString()]);
     
     if (!gameResult) {
       return res.status(500).json({ error: 'Failed to create game' });
     }
     
-    console.log('🎮 Game created with ID:', gameId);
+    console.log('🎮 Game created with ID:', gameId, 'Totals:', { totalBuyins, totalCashouts, discrepancy });
     
     // Add players to the game
     for (const player of players) {
       const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
+      
+      console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
       
       await queryDatabase(`
         INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
@@ -606,9 +725,9 @@ app.post('/api/games', async (req, res) => {
       `, [
         require('crypto').randomUUID(),
         gameId,
-        player.id,
-        player.buyin || '0',
-        player.cashout || '0',
+        player.player_id, // Frontend sends player_id, not id
+        player.buyin.toString(),
+        player.cashout.toString(),
         profit.toString()
       ]);
     }
