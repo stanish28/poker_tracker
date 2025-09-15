@@ -49,7 +49,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     database_pool: !!dbPool,
-    version: '1.0.1'
+    version: '1.0.2'
   });
 });
 
