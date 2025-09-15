@@ -33,12 +33,20 @@ async function queryDatabase(sql, params = []) {
     const client = await pool.connect();
     try {
       const result = await client.query(sql, params);
-      return result.rows;
+      // For INSERT/UPDATE/DELETE queries, return the result object
+      // For SELECT queries, return the rows
+      if (sql.trim().toLowerCase().startsWith('select')) {
+        return result.rows;
+      } else {
+        return result; // Return full result for INSERT/UPDATE/DELETE
+      }
     } finally {
       client.release();
     }
   } catch (error) {
     console.error('❌ Database query failed:', error);
+    console.error('❌ SQL:', sql);
+    console.error('❌ Params:', params);
     return null;
   }
 }
@@ -755,17 +763,24 @@ app.post('/api/games', async (req, res) => {
       
       console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
       
-      await queryDatabase(`
-        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-      `, [
-        require('crypto').randomUUID(),
-        gameId,
-        player.player_id, // Frontend sends player_id, not id
-        player.buyin.toString(),
-        player.cashout.toString(),
-        profit.toString()
-      ]);
+      try {
+        const playerResult = await queryDatabase(`
+          INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+        `, [
+          require('crypto').randomUUID(),
+          gameId,
+          player.player_id, // Frontend sends player_id, not id
+          player.buyin.toString(),
+          player.cashout.toString(),
+          profit.toString()
+        ]);
+        
+        console.log('🎮 Player added successfully:', player.player_id, 'Result:', playerResult);
+      } catch (playerError) {
+        console.error('🎮 Error adding player:', player.player_id, playerError);
+        throw playerError;
+      }
     }
     
     console.log('🎮 Game and players created successfully');
