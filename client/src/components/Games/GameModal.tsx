@@ -26,6 +26,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   const [error, setError] = useState<string | null>(null);
   const [isPlayerSelectorOpen, setIsPlayerSelectorOpen] = useState(false);
   const [playerSearchTerm, setPlayerSearchTerm] = useState('');
+  const [playerNetProfits, setPlayerNetProfits] = useState<{[key: string]: number}>({});
 
   useEffect(() => {
     const loadGameData = async () => {
@@ -63,6 +64,24 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
 
     loadGameData();
   }, [game]);
+
+  // Fetch accurate net profit data for players
+  useEffect(() => {
+    const fetchNetProfits = async () => {
+      try {
+        const netProfits = await apiService.getAllPlayersNetProfit();
+        const profitMap: {[key: string]: number} = {};
+        netProfits.forEach(profit => {
+          profitMap[profit.player_id] = profit.true_net_profit;
+        });
+        setPlayerNetProfits(profitMap);
+      } catch (err) {
+        console.error('Error fetching net profits:', err);
+      }
+    };
+
+    fetchNetProfits();
+  }, []);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, date: e.target.value }));
@@ -223,7 +242,10 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   const getAvailablePlayers = () => {
     return players.filter(p => 
       !formData.players.some(gp => gp.player_id === p.id)
-    );
+    ).map(player => ({
+      ...player,
+      net_profit: playerNetProfits[player.id] || player.net_profit || 0
+    }));
   };
 
   const clearPlayerSearch = () => {
