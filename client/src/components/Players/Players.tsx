@@ -13,6 +13,8 @@ const Players: React.FC = () => {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'net_profit' | 'total_games'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [playerNetProfits, setPlayerNetProfits] = useState<Record<string, {
     game_net_profit: number;
     settlement_impact: number;
@@ -115,14 +117,50 @@ const Players: React.FC = () => {
   };
 
   // Filter players based on search term
-  const filteredPlayers = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return players;
+  const filteredAndSortedPlayers = useMemo(() => {
+    let filtered = players;
+    
+    // Apply search filter
+    if (searchTerm.trim()) {
+      filtered = players.filter(player =>
+        player.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
-    return players.filter(player =>
-      player.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [players, searchTerm]);
+    
+    // Apply sorting
+    return filtered.sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
+      
+      switch (sortBy) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'net_profit':
+          aValue = playerNetProfits[a.id]?.true_net_profit || 0;
+          bValue = playerNetProfits[b.id]?.true_net_profit || 0;
+          break;
+        case 'total_games':
+          aValue = a.total_games || 0;
+          bValue = b.total_games || 0;
+          break;
+        default:
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+      }
+      
+      if (sortBy === 'name') {
+        // String comparison
+        const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        return sortOrder === 'asc' ? comparison : -comparison;
+      } else {
+        // Numeric comparison
+        const comparison = (aValue as number) - (bValue as number);
+        return sortOrder === 'asc' ? comparison : -comparison;
+      }
+    });
+  }, [players, searchTerm, sortBy, sortOrder, playerNetProfits]);
 
   const handlePlayerSaved = (savedPlayer: Player) => {
     if (editingPlayer) {
@@ -173,7 +211,7 @@ const Players: React.FC = () => {
           <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">
             Manage poker players and track their statistics
             {searchTerm && (
-              <span className="text-primary-600"> • {filteredPlayers.length} of {players.length} shown</span>
+              <span className="text-primary-600"> • {filteredAndSortedPlayers.length} of {players.length} shown</span>
             )}
           </p>
         </div>
@@ -208,6 +246,41 @@ const Players: React.FC = () => {
         )}
       </div>
 
+      {/* Sort Controls */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Sort by
+          </label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'name' | 'net_profit' | 'total_games')}
+            className="input"
+          >
+            <option value="name">Name</option>
+            <option value="net_profit">Net Profit</option>
+            <option value="total_games">Total Games</option>
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Order
+          </label>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+            className="input"
+          >
+            <option value="asc">
+              {sortBy === 'name' ? 'A-Z' : 'Low to High'}
+            </option>
+            <option value="desc">
+              {sortBy === 'name' ? 'Z-A' : 'High to Low'}
+            </option>
+          </select>
+        </div>
+      </div>
+
       {/* Error Message */}
       {error && (
         <div className="p-4 bg-danger-50 border border-danger-200 rounded-md">
@@ -216,11 +289,11 @@ const Players: React.FC = () => {
       )}
 
       {/* Players List */}
-      {filteredPlayers.length > 0 ? (
+      {filteredAndSortedPlayers.length > 0 ? (
         <>
           {/* Desktop Grid */}
           <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPlayers.map((player) => (
+            {filteredAndSortedPlayers.map((player) => (
               <div key={player.id} className="card">
                 <div className="card-content">
                   <div className="flex justify-between items-start mb-4">
