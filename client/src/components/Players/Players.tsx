@@ -378,7 +378,7 @@ const Players: React.FC = () => {
 
           {/* Mobile Compact Bars */}
           <div className="md:hidden space-y-2">
-            {filteredPlayers.map((player) => {
+            {filteredAndSortedPlayers.map((player) => {
               const isExpanded = expandedPlayers.has(player.id);
               return (
                 <div key={player.id} className="bg-white rounded-lg border border-gray-200 shadow-sm">
