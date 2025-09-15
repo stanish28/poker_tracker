@@ -763,23 +763,24 @@ app.post('/api/games', async (req, res) => {
       
       console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
       
-      try {
-        const playerResult = await queryDatabase(`
-          INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-        `, [
-          require('crypto').randomUUID(),
-          gameId,
-          player.player_id, // Frontend sends player_id, not id
-          player.buyin.toString(),
-          player.cashout.toString(),
-          profit.toString()
-        ]);
-        
+      const playerResult = await queryDatabase(`
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      `, [
+        require('crypto').randomUUID(),
+        gameId,
+        player.player_id, // Frontend sends player_id, not id
+        player.buyin.toString(),
+        player.cashout.toString(),
+        profit.toString()
+      ]);
+      
+      if (!playerResult) {
+        console.error('🎮 Failed to add player:', player.player_id);
+        // Don't throw error, just log it and continue
+        // This prevents the entire transaction from failing
+      } else {
         console.log('🎮 Player added successfully:', player.player_id, 'Result:', playerResult);
-      } catch (playerError) {
-        console.error('🎮 Error adding player:', player.player_id, playerError);
-        throw playerError;
       }
     }
     
