@@ -541,8 +541,8 @@ app.post('/api/games/:gameId/players', async (req, res) => {
       console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
       
       await queryDatabase(`
-        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
       `, [
         require('crypto').randomUUID(),
         gameId,
@@ -764,8 +764,8 @@ app.post('/api/games', async (req, res) => {
       console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
       
       const playerResult = await queryDatabase(`
-        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
       `, [
         require('crypto').randomUUID(),
         gameId,
