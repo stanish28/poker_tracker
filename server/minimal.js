@@ -789,6 +789,70 @@ app.post('/api/games', async (req, res) => {
   }
 });
 
+// Update game endpoint
+app.put('/api/games/:id', async (req, res) => {
+  try {
+    const gameId = req.params.id;
+    const { date, is_completed } = req.body;
+    console.log('🎮 Update game endpoint called for game:', gameId);
+    
+    if (!gameId) {
+      return res.status(400).json({ error: 'Game ID is required' });
+    }
+    
+    // Update game basic info
+    const updateFields = [];
+    const updateValues = [];
+    let paramCount = 1;
+    
+    if (date) {
+      updateFields.push(`date = $${paramCount}`);
+      updateValues.push(date);
+      paramCount++;
+    }
+    
+    if (typeof is_completed === 'boolean') {
+      updateFields.push(`is_completed = $${paramCount}`);
+      updateValues.push(is_completed);
+      paramCount++;
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    updateValues.push(gameId);
+    
+    const updateQuery = `
+      UPDATE games 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+    `;
+    
+    await queryDatabase(updateQuery, updateValues);
+    
+    console.log('🎮 Game updated successfully:', gameId);
+    
+    // Return the updated game
+    const updatedGame = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
+      FROM games 
+      WHERE id = $1
+    `, [gameId]);
+    
+    if (updatedGame && updatedGame.length > 0) {
+      res.json(updatedGame[0]);
+    } else {
+      res.status(404).json({ error: 'Game not found' });
+    }
+  } catch (error) {
+    console.error('🎮 Error updating game:', error);
+    res.status(500).json({ error: 'Failed to update game' });
+  }
+});
+
 app.get('/api/games/stats/overview', async (req, res) => {
   try {
     console.log('📊 Games stats endpoint called');
