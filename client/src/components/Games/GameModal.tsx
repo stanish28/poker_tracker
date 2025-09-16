@@ -383,60 +383,71 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {filteredGamePlayers.map((gamePlayer, originalIndex) => {
                   const index = formData.players.findIndex(gp => gp.player_id === gamePlayer.player_id);
+                  const isWinner = profitablePlayers.some(winner => winner.player_id === gamePlayer.player_id) && discrepancy > 0;
                   return (
-                  <div key={index} className={`p-4 border rounded-lg ${
-                    profitablePlayers.some(winner => winner.player_id === gamePlayer.player_id) && discrepancy > 0
-                      ? 'border-success-300 bg-success-50'
-                      : 'border-gray-200'
-                  }`}>
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="font-medium text-gray-900">
-                        {getPlayerName(gamePlayer.player_id)}
-                      </h4>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePlayer(index)}
-                        className="btn btn-danger btn-sm"
-                        disabled={isLoading}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Buy-in ($)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={gamePlayer.buyin}
-                          onChange={(e) => handlePlayerChange(index, 'buyin', parseFloat(e.target.value) || 0)}
-                          className="input"
-                          disabled={isLoading}
-                        />
+                    <div key={index} className={`flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 p-3 border rounded-lg ${
+                      isWinner
+                        ? 'border-success-300 bg-success-50'
+                        : 'border-gray-200 bg-white'
+                    }`}>
+                      {/* Player Name */}
+                      <div className="flex-shrink-0 min-w-0 flex-1">
+                        <h4 className="font-medium text-gray-900 truncate">
+                          {getPlayerName(gamePlayer.player_id)}
+                        </h4>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Cash-out ($)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={gamePlayer.cashout}
-                          onChange={(e) => handlePlayerChange(index, 'cashout', parseFloat(e.target.value) || 0)}
-                          className="input"
-                          disabled={isLoading}
-                        />
+                      
+                      {/* Input Fields Container */}
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        {/* Buy-in Input */}
+                        <div className="flex-shrink-0 w-20 sm:w-24">
+                          <label className="block text-xs text-gray-600 mb-1">
+                            Buy-in ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={gamePlayer.buyin}
+                            onChange={(e) => handlePlayerChange(index, 'buyin', parseFloat(e.target.value) || 0)}
+                            className="input text-sm py-1 px-2 w-full"
+                            disabled={isLoading}
+                          />
+                        </div>
+                        
+                        {/* Cash-out Input */}
+                        <div className="flex-shrink-0 w-20 sm:w-24">
+                          <label className="block text-xs text-gray-600 mb-1">
+                            Cash-out ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={gamePlayer.cashout}
+                            onChange={(e) => handlePlayerChange(index, 'cashout', parseFloat(e.target.value) || 0)}
+                            className="input text-sm py-1 px-2 w-full"
+                            disabled={isLoading}
+                          />
+                        </div>
+                        
+                        {/* Delete Button */}
+                        <div className="flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePlayer(index)}
+                            className="btn btn-danger btn-sm p-2"
+                            disabled={isLoading}
+                            title="Remove player"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
                   );
                 })}
               </div>
