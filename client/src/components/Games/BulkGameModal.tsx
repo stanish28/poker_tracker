@@ -161,7 +161,7 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">Parse Game Data</h3>
         <p className="text-sm text-gray-600">
-          Paste your notes app data or game tally. The system will automatically parse player names and profit/loss amounts.
+          Paste your game tally below. The system will automatically parse player names and amounts.
         </p>
       </div>
 
@@ -185,7 +185,7 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
         </label>
         <textarea
           id="text"
-          rows={8}
+          rows={12}
           value={text}
           onChange={handleTextChange}
           placeholder="Paste your game data here, e.g.:
@@ -195,7 +195,7 @@ Nivaan: -30
 Heaansh: -35
 Gurshaan: +40
 Akhil: -10.5"
-          className="input resize-none"
+          className="input resize-none w-full min-h-[200px]"
           disabled={isLoading}
         />
         <p className="text-xs text-gray-500 mt-1">
@@ -472,7 +472,7 @@ Akhil: -10.5"
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto slide-up">
+      <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto slide-up">
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
             Bulk Game Creation
