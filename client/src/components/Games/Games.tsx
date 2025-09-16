@@ -5,7 +5,7 @@ import { Game, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 import GameModal from './GameModal';
 import GameDetailsModal from './GameDetailsModal';
-import BulkGameModal from './BulkGameModal';
+import TextImportModal from './BulkGameModal';
 
 const Games: React.FC = () => {
   const [games, setGames] = useState<Game[]>([]);
@@ -14,7 +14,7 @@ const Games: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isTextImportModalOpen, setIsTextImportModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
 
@@ -45,8 +45,8 @@ const Games: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleBulkCreateGame = () => {
-    setIsBulkModalOpen(true);
+  const handleTextImportGame = () => {
+    setIsTextImportModalOpen(true);
   };
 
   const handleViewGame = (game: Game) => {
@@ -90,8 +90,8 @@ const Games: React.FC = () => {
     setEditingGame(null);
   };
 
-  const handleBulkModalClose = () => {
-    setIsBulkModalOpen(false);
+  const handleTextImportModalClose = () => {
+    setIsTextImportModalOpen(false);
   };
 
   const handleDetailsModalClose = () => {
@@ -108,9 +108,9 @@ const Games: React.FC = () => {
     handleModalClose();
   };
 
-  const handleBulkGameCreated = (game: Game) => {
+  const handleTextImportGameCreated = (game: Game) => {
     setGames(prev => [game, ...prev]);
-    setIsBulkModalOpen(false);
+    setIsTextImportModalOpen(false);
   };
 
   const formatCurrency = (amount: number | string) => {
@@ -143,11 +143,11 @@ const Games: React.FC = () => {
         </div>
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
           <button
-            onClick={handleBulkCreateGame}
+            onClick={handleTextImportGame}
             className="btn btn-secondary btn-md w-full sm:w-auto"
           >
             <FileText className="h-4 w-4 mr-2" />
-            Bulk Import
+            Text Import
           </button>
           <button
             onClick={handleCreateGame}
@@ -408,11 +408,11 @@ const Games: React.FC = () => {
         />
       )}
 
-      {/* Bulk Game Modal */}
-      {isBulkModalOpen && (
-        <BulkGameModal
-          onClose={handleBulkModalClose}
-          onGameCreated={handleBulkGameCreated}
+      {/* Text Import Modal */}
+      {isTextImportModalOpen && (
+        <TextImportModal
+          onClose={handleTextImportModalClose}
+          onGameCreated={handleTextImportGameCreated}
         />
       )}
     </div>

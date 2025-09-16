@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, UserPlus } from 'lucide-react';
 import { apiService } from '../../services/api';
 
-interface BulkGameModalProps {
+interface TextImportModalProps {
   onClose: () => void;
   onGameCreated: (game: any) => void;
 }
@@ -17,7 +17,7 @@ interface ParsedPlayer {
   suggestions?: Array<{ id: string; name: string; similarity: number }>;
 }
 
-const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated }) => {
+const TextImportModal: React.FC<TextImportModalProps> = ({ onClose, onGameCreated }) => {
   const [step, setStep] = useState<'input' | 'preview' | 'creating'>('input');
   const [text, setText] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -159,7 +159,7 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
   const renderInputStep = () => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Parse Game Data</h3>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Import Game Data</h3>
         <p className="text-sm text-gray-600">
           Paste your game tally below. The system will automatically parse player names and amounts.
         </p>
@@ -224,7 +224,7 @@ Akhil: -10.5"
           className="btn btn-primary"
           disabled={isLoading || !text.trim()}
         >
-          {isLoading ? 'Parsing...' : 'Parse & Preview'}
+          {isLoading ? 'Importing...' : 'Import & Preview'}
         </button>
       </div>
     </div>
@@ -475,7 +475,7 @@ Akhil: -10.5"
       <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto slide-up">
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
-            Bulk Game Creation
+            Text Import Game
           </h2>
           <button
             onClick={onClose}
@@ -496,5 +496,5 @@ Akhil: -10.5"
   );
 };
 
-export default BulkGameModal;
+export default TextImportModal;
 
