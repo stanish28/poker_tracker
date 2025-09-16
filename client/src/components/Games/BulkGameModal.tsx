@@ -226,7 +226,7 @@ Akhil: -10.5"
               <span className="text-sm font-medium text-danger-800">Errors</span>
             </div>
             <ul className="text-sm text-danger-700 list-disc list-inside">
-              {validation.errors.map((error, index) => (
+              {validation.errors.map((error: string, index: number) => (
                 <li key={index}>{error}</li>
               ))}
             </ul>
@@ -240,7 +240,7 @@ Akhil: -10.5"
               <span className="text-sm font-medium text-yellow-800">Warnings</span>
             </div>
             <ul className="text-sm text-yellow-700 list-disc list-inside">
-              {validation.warnings.map((warning, index) => (
+              {validation.warnings.map((warning: string, index: number) => (
                 <li key={index}>{warning}</li>
               ))}
             </ul>
