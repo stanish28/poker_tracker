@@ -388,20 +388,20 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
                   const index = formData.players.findIndex(gp => gp.player_id === gamePlayer.player_id);
                   const isWinner = profitablePlayers.some(winner => winner.player_id === gamePlayer.player_id) && discrepancy > 0;
                   return (
-                    <div key={index} className={`flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 p-3 border rounded-lg ${
+                    <div key={index} className={`flex items-center justify-between p-3 border rounded-lg ${
                       isWinner
                         ? 'border-success-300 bg-success-50'
                         : 'border-gray-200 bg-white'
                     }`}>
-                      {/* Player Name */}
-                      <div className="flex-shrink-0 min-w-0 flex-1">
+                      {/* Player Name - Left Side */}
+                      <div className="flex-shrink-0 min-w-0 flex-1 mr-4">
                         <h4 className="font-medium text-gray-900 truncate">
                           {getPlayerName(gamePlayer.player_id)}
                         </h4>
                       </div>
                       
-                      {/* Input Fields Container */}
-                      <div className="flex items-center space-x-2 sm:space-x-3">
+                      {/* Input Fields and Delete Button - Right Side */}
+                      <div className="flex items-center space-x-3">
                         {/* Buy-in Input */}
                         <div className="flex-shrink-0 w-20 sm:w-24">
                           <label className="block text-xs text-gray-600 mb-1">
