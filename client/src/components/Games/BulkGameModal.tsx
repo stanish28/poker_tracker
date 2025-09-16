@@ -133,11 +133,11 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
 
   // Calculate discrepancy and profitable players
   const currentPlayers = adjustedPlayers.length > 0 ? adjustedPlayers : (parsedData?.preview.players || []);
-  const totalBuyins = currentPlayers.reduce((sum, p) => sum + p.buyin, 0);
-  const totalCashouts = currentPlayers.reduce((sum, p) => sum + p.cashout, 0);
+  const totalBuyins = currentPlayers.reduce((sum: number, p: ParsedPlayer) => sum + p.buyin, 0);
+  const totalCashouts = currentPlayers.reduce((sum: number, p: ParsedPlayer) => sum + p.cashout, 0);
   const discrepancy = totalCashouts - totalBuyins;
   
-  const profitablePlayers = currentPlayers.filter(p => p.profit > 0);
+  const profitablePlayers = currentPlayers.filter((p: ParsedPlayer) => p.profit > 0);
   const discrepancyPerWinner = discrepancy > 0 && profitablePlayers.length > 0 
     ? discrepancy / profitablePlayers.length 
     : 0;
@@ -145,8 +145,8 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
   const handleDistributeDiscrepancy = () => {
     if (discrepancy <= 0 || profitablePlayers.length === 0) return;
 
-    setAdjustedPlayers(prev => prev.map(player => {
-      const isWinner = profitablePlayers.some(winner => winner.name === player.name);
+    setAdjustedPlayers(prev => prev.map((player: ParsedPlayer) => {
+      const isWinner = profitablePlayers.some((winner: ParsedPlayer) => winner.name === player.name);
       if (isWinner) {
         const newCashout = player.cashout - discrepancyPerWinner;
         const newProfit = newCashout - player.buyin;
@@ -385,7 +385,7 @@ Akhil: -10.5"
           <h4 className="font-medium text-gray-900">Player Values</h4>
           <div className="space-y-2">
             {currentPlayers.map((player: ParsedPlayer, index: number) => {
-              const isWinner = profitablePlayers.some(winner => winner.name === player.name) && discrepancy > 0;
+              const isWinner = profitablePlayers.some((winner: ParsedPlayer) => winner.name === player.name) && discrepancy > 0;
               return (
                 <div key={index} className={`flex items-center justify-between p-3 border rounded-lg ${
                   isWinner
