@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, FileText, CheckCircle, AlertCircle, UserPlus, Users } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, UserPlus } from 'lucide-react';
 import { apiService } from '../../services/api';
 
 interface BulkGameModalProps {
@@ -80,12 +80,6 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
     }
   };
 
-  const handlePlayerMappingChange = (parsedName: string, playerId: string) => {
-    setPlayerMappings(prev => ({
-      ...prev,
-      [parsedName]: playerId
-    }));
-  };
 
   const handleCreateGame = async () => {
     if (!parsedData) return;
