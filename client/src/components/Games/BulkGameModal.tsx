@@ -34,6 +34,9 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
   // Player matching state
   const [playerMappings, setPlayerMappings] = useState<Record<string, string>>({});
   const [createNewPlayers, setCreateNewPlayers] = useState(true);
+  
+  // Discrepancy settlement state
+  const [adjustedPlayers, setAdjustedPlayers] = useState<ParsedPlayer[]>([]);
 
   useEffect(() => {
     if (step === 'preview' && parsedData) {
@@ -43,6 +46,9 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
         mappings[match.parsedName] = match.existingPlayer.id;
       });
       setPlayerMappings(mappings);
+      
+      // Initialize adjusted players with original data
+      setAdjustedPlayers(parsedData.preview.players);
     }
   }, [step, parsedData]);
 
@@ -89,8 +95,9 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
       setError(null);
       setStep('creating');
 
-      // Prepare players data
-      const players = parsedData.preview.players.map((player: ParsedPlayer) => ({
+      // Prepare players data using adjusted players if available
+      const playersToUse = adjustedPlayers.length > 0 ? adjustedPlayers : parsedData.preview.players;
+      const players = playersToUse.map((player: ParsedPlayer) => ({
         name: player.name,
         profit: player.profit,
         playerId: playerMappings[player.name] || undefined
@@ -122,6 +129,31 @@ const BulkGameModal: React.FC<BulkGameModalProps> = ({ onClose, onGameCreated })
     } else if (step === 'creating') {
       setStep('preview');
     }
+  };
+
+  // Calculate discrepancy and profitable players
+  const currentPlayers = adjustedPlayers.length > 0 ? adjustedPlayers : (parsedData?.preview.players || []);
+  const totalBuyins = currentPlayers.reduce((sum, p) => sum + p.buyin, 0);
+  const totalCashouts = currentPlayers.reduce((sum, p) => sum + p.cashout, 0);
+  const discrepancy = totalCashouts - totalBuyins;
+  
+  const profitablePlayers = currentPlayers.filter(p => p.profit > 0);
+  const discrepancyPerWinner = discrepancy > 0 && profitablePlayers.length > 0 
+    ? discrepancy / profitablePlayers.length 
+    : 0;
+
+  const handleDistributeDiscrepancy = () => {
+    if (discrepancy <= 0 || profitablePlayers.length === 0) return;
+
+    setAdjustedPlayers(prev => prev.map(player => {
+      const isWinner = profitablePlayers.some(winner => winner.name === player.name);
+      if (isWinner) {
+        const newCashout = player.cashout - discrepancyPerWinner;
+        const newProfit = newCashout - player.buyin;
+        return { ...player, cashout: newCashout, profit: newProfit };
+      }
+      return player;
+    }));
   };
 
   const renderInputStep = () => (
@@ -243,7 +275,19 @@ Akhil: -10.5"
 
         {/* Game Summary */}
         <div className="p-4 bg-gray-50 rounded-lg">
-          <h4 className="font-medium text-gray-900 mb-3">Game Summary</h4>
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="font-medium text-gray-900">Game Summary</h4>
+            {discrepancy > 0 && profitablePlayers.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDistributeDiscrepancy}
+                className="btn btn-primary btn-sm"
+                title={`Distribute $${discrepancy.toFixed(2)} among ${profitablePlayers.length} winners`}
+              >
+                Distribute Discrepancy
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Players:</span>
@@ -251,22 +295,37 @@ Akhil: -10.5"
             </div>
             <div>
               <span className="text-gray-600">Total Buy-ins:</span>
-              <span className="ml-2 font-medium">${preview.totalBuyins.toFixed(2)}</span>
+              <span className="ml-2 font-medium">${totalBuyins.toFixed(2)}</span>
             </div>
             <div>
               <span className="text-gray-600">Total Cash-outs:</span>
-              <span className="ml-2 font-medium">${preview.totalCashouts.toFixed(2)}</span>
+              <span className="ml-2 font-medium">${totalCashouts.toFixed(2)}</span>
             </div>
             <div>
               <span className="text-gray-600">Discrepancy:</span>
               <span className={`ml-2 font-medium ${
-                preview.discrepancy > 0 ? 'text-success-600' : 
-                preview.discrepancy < 0 ? 'text-danger-600' : 'text-gray-600'
+                discrepancy > 0 ? 'text-success-600' : 
+                discrepancy < 0 ? 'text-danger-600' : 'text-gray-600'
               }`}>
-                ${preview.discrepancy.toFixed(2)}
+                ${discrepancy.toFixed(2)}
               </span>
             </div>
           </div>
+
+          {/* Discrepancy Distribution Info */}
+          {discrepancy > 0 && profitablePlayers.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Distribution per winner:</span>
+                <span className="font-medium text-primary-600">
+                  ${discrepancyPerWinner.toFixed(2)} × {profitablePlayers.length}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Click "Distribute Discrepancy" to reduce each winner's cash-out by ${discrepancyPerWinner.toFixed(2)}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Player Matching */}
@@ -319,6 +378,46 @@ Akhil: -10.5"
               </div>
             </div>
           )}
+        </div>
+
+        {/* Player Values */}
+        <div className="space-y-4">
+          <h4 className="font-medium text-gray-900">Player Values</h4>
+          <div className="space-y-2">
+            {currentPlayers.map((player: ParsedPlayer, index: number) => {
+              const isWinner = profitablePlayers.some(winner => winner.name === player.name) && discrepancy > 0;
+              return (
+                <div key={index} className={`flex items-center justify-between p-3 border rounded-lg ${
+                  isWinner
+                    ? 'border-success-300 bg-success-50'
+                    : 'border-gray-200 bg-white'
+                }`}>
+                  <div className="flex-1">
+                    <span className="font-medium text-gray-900">{player.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <div className="text-center">
+                      <div className="text-gray-600 text-xs">Buy-in</div>
+                      <div className="font-medium">${player.buyin.toFixed(2)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-gray-600 text-xs">Cash-out</div>
+                      <div className="font-medium">${player.cashout.toFixed(2)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-gray-600 text-xs">Profit</div>
+                      <div className={`font-medium ${
+                        player.profit > 0 ? 'text-success-600' : 
+                        player.profit < 0 ? 'text-danger-600' : 'text-gray-600'
+                      }`}>
+                        {player.profit >= 0 ? '+' : ''}${player.profit.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Settings */}
@@ -398,3 +497,4 @@ Akhil: -10.5"
 };
 
 export default BulkGameModal;
+
