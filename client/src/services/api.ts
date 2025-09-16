@@ -231,6 +231,79 @@ class ApiService {
     return this.request<PlayerDebts>(`/settlements/player/${playerId}/debts`);
   }
 
+  // Bulk game creation endpoints
+  async parseGameText(text: string, date?: string): Promise<{
+    success: boolean;
+    preview: {
+      players: Array<{
+        name: string;
+        profit: number;
+        buyin: number;
+        cashout: number;
+      }>;
+      totalBuyins: number;
+      totalCashouts: number;
+      discrepancy: number;
+      playerCount: number;
+      gameDate: string;
+    };
+    matching: {
+      matched: Array<{
+        parsedName: string;
+        existingPlayer: { id: string; name: string };
+        similarity: number;
+        profit: number;
+      }>;
+      unmatched: Array<{
+        parsedName: string;
+        profit: number;
+        suggestions: Array<{ id: string; name: string; similarity: number }>;
+      }>;
+    };
+    validation: {
+      errors: string[];
+      warnings: string[];
+    };
+  }> {
+    return this.request('/bulk-game/parse', {
+      method: 'POST',
+      body: JSON.stringify({ text, date }),
+    });
+  }
+
+  async createBulkGame(data: {
+    date: string;
+    players: Array<{
+      name: string;
+      profit: number;
+      playerId?: string;
+    }>;
+    createNewPlayers?: boolean;
+  }): Promise<{
+    success: boolean;
+    game: GameWithPlayers;
+    newPlayersCreated: Array<{ id: string; name: string }>;
+    summary: {
+      totalPlayers: number;
+      totalBuyins: number;
+      totalCashouts: number;
+      discrepancy: number;
+      newPlayersCount: number;
+    };
+  }> {
+    return this.request('/bulk-game/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getBulkGamePlayers(): Promise<{
+    success: boolean;
+    players: Array<{ id: string; name: string }>;
+  }> {
+    return this.request('/bulk-game/players');
+  }
+
   // Health check
   async healthCheck(): Promise<{ status: string; timestamp: string; environment: string }> {
     return this.request('/health');

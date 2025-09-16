@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 import GameModal from './GameModal';
 import GameDetailsModal from './GameDetailsModal';
+import BulkGameModal from './BulkGameModal';
 
 const Games: React.FC = () => {
   const [games, setGames] = useState<Game[]>([]);
@@ -13,6 +14,7 @@ const Games: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
 
@@ -41,6 +43,10 @@ const Games: React.FC = () => {
   const handleCreateGame = () => {
     setEditingGame(null);
     setIsModalOpen(true);
+  };
+
+  const handleBulkCreateGame = () => {
+    setIsBulkModalOpen(true);
   };
 
   const handleViewGame = (game: Game) => {
@@ -84,6 +90,10 @@ const Games: React.FC = () => {
     setEditingGame(null);
   };
 
+  const handleBulkModalClose = () => {
+    setIsBulkModalOpen(false);
+  };
+
   const handleDetailsModalClose = () => {
     setIsDetailsModalOpen(false);
     setSelectedGame(null);
@@ -96,6 +106,11 @@ const Games: React.FC = () => {
       setGames(prev => [savedGame, ...prev]);
     }
     handleModalClose();
+  };
+
+  const handleBulkGameCreated = (game: Game) => {
+    setGames(prev => [game, ...prev]);
+    setIsBulkModalOpen(false);
   };
 
   const formatCurrency = (amount: number | string) => {
@@ -126,14 +141,23 @@ const Games: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Games</h1>
           <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Track poker game sessions and player participation</p>
         </div>
-        <button
-          onClick={handleCreateGame}
-          className="btn btn-primary btn-md w-full sm:w-auto"
-          disabled={players.length === 0}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Game
-        </button>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+          <button
+            onClick={handleBulkCreateGame}
+            className="btn btn-secondary btn-md w-full sm:w-auto"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Bulk Import
+          </button>
+          <button
+            onClick={handleCreateGame}
+            className="btn btn-primary btn-md w-full sm:w-auto"
+            disabled={players.length === 0}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Game
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -381,6 +405,14 @@ const Games: React.FC = () => {
         <GameDetailsModal
           game={selectedGame}
           onClose={handleDetailsModalClose}
+        />
+      )}
+
+      {/* Bulk Game Modal */}
+      {isBulkModalOpen && (
+        <BulkGameModal
+          onClose={handleBulkModalClose}
+          onGameCreated={handleBulkGameCreated}
         />
       )}
     </div>

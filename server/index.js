@@ -19,6 +19,7 @@ const authRoutes = require('./routes/auth');
 const playerRoutes = require('./routes/players');
 const gameRoutes = require('./routes/games');
 const settlementRoutes = require('./routes/settlements');
+const bulkGameRoutes = require('./routes/bulkGame');
 const { initializeDatabase } = require('./database/postgres-adapter');
 
 const app = express();
@@ -110,6 +111,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/settlements', settlementRoutes);
+app.use('/api/bulk-game', bulkGameRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
