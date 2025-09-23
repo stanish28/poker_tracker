@@ -1,8 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
-const multer = require('multer');
-const Tesseract = require('tesseract.js');
 const { getQuery, runQuery, allQuery } = require('../database/adapter');
 const TextParser = require('../utils/textParser');
 const FuzzyMatcher = require('../utils/fuzzyMatcher');
@@ -13,20 +11,6 @@ const router = express.Router();
 const textParser = new TextParser();
 const fuzzyMatcher = new FuzzyMatcher();
 
-// Configure multer for file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  }
-});
 
 /**
  * Parse text and return preview data
@@ -246,87 +230,5 @@ router.get('/players', async (req, res) => {
   }
 });
 
-/**
- * Process screenshot with OCR and return parsed data
- * POST /api/bulk-game/ocr
- */
-router.post('/ocr', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
-    }
-
-    const { date } = req.body;
-    const imageBuffer = req.file.buffer;
-
-    console.log('Processing image with OCR...');
-    
-    // Perform OCR on the image
-    const { data: { text } } = await Tesseract.recognize(
-      imageBuffer,
-      'eng',
-      {
-        logger: m => console.log(m)
-      }
-    );
-
-    console.log('OCR Text extracted:', text);
-
-    if (!text || text.trim().length === 0) {
-      return res.status(400).json({ 
-        error: 'No text could be extracted from the image. Please ensure the image contains clear, readable text.' 
-      });
-    }
-
-    // Parse the extracted text using the existing text parser
-    const parsedPlayers = textParser.parseText(text);
-    
-    // Validate parsed data
-    const validation = textParser.validateParsedData(parsedPlayers);
-    if (!validation.isValid) {
-      return res.status(400).json({
-        error: 'Could not parse game data from the image',
-        details: validation.errors,
-        warnings: validation.warnings,
-        extractedText: text
-      });
-    }
-
-    // Get existing players for matching
-    const existingPlayers = await allQuery(`
-      SELECT id, name FROM players ORDER BY name
-    `);
-
-    // Match players using fuzzy matching
-    const matching = fuzzyMatcher.matchPlayers(parsedPlayers, existingPlayers);
-
-    // Generate preview
-    const preview = textParser.generatePreview(parsedPlayers);
-
-    res.json({
-      success: true,
-      preview: {
-        ...preview,
-        gameDate: date || new Date().toISOString().split('T')[0]
-      },
-      matching: {
-        matched: matching.matched,
-        unmatched: matching.unmatched
-      },
-      validation: {
-        errors: validation.errors,
-        warnings: validation.warnings
-      },
-      extractedText: text // Include for debugging
-    });
-
-  } catch (error) {
-    console.error('Error processing image with OCR:', error);
-    res.status(500).json({ 
-      error: 'Failed to process image',
-      details: error.message 
-    });
-  }
-});
 
 module.exports = router;
