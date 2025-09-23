@@ -28,6 +28,8 @@ const Settlements: React.FC = () => {
         apiService.getSettlements(),
         apiService.getPlayers()
       ]);
+      console.log('💰 Fetched settlements:', settlementsData);
+      console.log('💰 Fetched players:', playersData);
       setSettlements(settlementsData);
       setPlayers(playersData);
     } catch (err) {
@@ -78,6 +80,16 @@ const Settlements: React.FC = () => {
   };
 
   const handleSettlementSaved = (savedSettlement: Settlement) => {
+    console.log('💰 Settlement saved:', savedSettlement);
+    console.log('💰 Settlement data structure:', {
+      id: savedSettlement.id,
+      amount: savedSettlement.amount,
+      date: savedSettlement.date,
+      from_player_name: savedSettlement.from_player_name,
+      to_player_name: savedSettlement.to_player_name,
+      notes: savedSettlement.notes
+    });
+    
     if (editingSettlement) {
       setSettlements(prev => prev.map(s => s.id === savedSettlement.id ? savedSettlement : s));
     } else {

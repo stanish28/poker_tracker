@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle, FileText, Camera } from 'lucide-react';
+import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 import GameModal from './GameModal';
 import GameDetailsModal from './GameDetailsModal';
 import TextImportModal from './BulkGameModal';
-import ScreenshotImportModal from './ScreenshotImportModal';
 
 const Games: React.FC = () => {
   const [games, setGames] = useState<Game[]>([]);
@@ -16,7 +15,6 @@ const Games: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isTextImportModalOpen, setIsTextImportModalOpen] = useState(false);
-  const [isScreenshotImportModalOpen, setIsScreenshotImportModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
 
@@ -51,9 +49,6 @@ const Games: React.FC = () => {
     setIsTextImportModalOpen(true);
   };
 
-  const handleScreenshotImportGame = () => {
-    setIsScreenshotImportModalOpen(true);
-  };
 
   const handleViewGame = (game: Game) => {
     setSelectedGame(game);
@@ -100,9 +95,6 @@ const Games: React.FC = () => {
     setIsTextImportModalOpen(false);
   };
 
-  const handleScreenshotImportModalClose = () => {
-    setIsScreenshotImportModalOpen(false);
-  };
 
   const handleDetailsModalClose = () => {
     setIsDetailsModalOpen(false);
@@ -123,10 +115,6 @@ const Games: React.FC = () => {
     setIsTextImportModalOpen(false);
   };
 
-  const handleScreenshotImportGameCreated = (game: Game) => {
-    setGames(prev => [game, ...prev]);
-    setIsScreenshotImportModalOpen(false);
-  };
 
   const formatCurrency = (amount: number | string) => {
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -163,13 +151,6 @@ const Games: React.FC = () => {
           >
             <FileText className="h-4 w-4 mr-2" />
             Text Import
-          </button>
-          <button
-            onClick={handleScreenshotImportGame}
-            className="btn btn-secondary btn-md w-full sm:w-auto"
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            Screenshot Import
           </button>
           <button
             onClick={handleCreateGame}
@@ -438,13 +419,6 @@ const Games: React.FC = () => {
         />
       )}
 
-      {/* Screenshot Import Modal */}
-      {isScreenshotImportModalOpen && (
-        <ScreenshotImportModal
-          onClose={handleScreenshotImportModalClose}
-          onGameCreated={handleScreenshotImportGameCreated}
-        />
-      )}
     </div>
   );
 };
