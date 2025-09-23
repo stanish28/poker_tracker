@@ -97,7 +97,7 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
         setStep('preview');
       } catch (abortError) {
         clearTimeout(timeoutId);
-        if (abortError.name === 'AbortError') {
+        if (abortError instanceof Error && abortError.name === 'AbortError') {
           throw new Error('OCR processing timed out. Please try with a smaller or clearer image.');
         }
         throw abortError;
