@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, Camera, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Camera, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { apiService } from '../../services/api';
 
 interface ScreenshotImportModalProps {
@@ -26,24 +26,7 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setError('Please select an image file');
-        return;
-      }
-      
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return;
-      }
-
-      setSelectedFile(file);
-      setError(null);
-      
-      // Create preview URL
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+      handleFileFromDrop(file);
     }
   };
 
@@ -51,11 +34,30 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
     e.preventDefault();
     const file = e.dataTransfer.files[0];
     if (file) {
-      const event = {
-        target: { files: [file] }
-      } as React.ChangeEvent<HTMLInputElement>;
-      handleFileSelect(event);
+      // Directly handle the file without creating a fake event
+      handleFileFromDrop(file);
     }
+  };
+
+  const handleFileFromDrop = (file: File) => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file');
+      return;
+    }
+    
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB');
+      return;
+    }
+
+    setSelectedFile(file);
+    setError(null);
+    
+    // Create preview URL
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
