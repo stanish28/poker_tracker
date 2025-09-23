@@ -1530,7 +1530,7 @@ app.get('/api/bulk-game/players', async (req, res) => {
  * POST /api/bulk-game/ocr
  */
 app.post('/api/bulk-game/ocr', upload.single('image'), async (req, res) => {
-  // Set a timeout to prevent hanging requests
+  // Set a timeout to prevent hanging requests (reduced for Notes app optimization)
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
       res.status(408).json({ 
@@ -1538,7 +1538,7 @@ app.post('/api/bulk-game/ocr', upload.single('image'), async (req, res) => {
         timeout: true
       });
     }
-  }, 25000); // 25 second timeout (leaving buffer for Vercel's 30s limit)
+  }, 15000); // 15 second timeout (optimized for Notes app screenshots)
 
   try {
     if (!req.file) {
@@ -1555,7 +1555,7 @@ app.post('/api/bulk-game/ocr', upload.single('image'), async (req, res) => {
       mimeType: req.file.mimetype
     });
     
-    // Optimize Tesseract configuration for faster processing
+    // Optimize Tesseract configuration for Notes app screenshots
     const { data: { text } } = await Tesseract.recognize(
       imageBuffer,
       'eng',
@@ -1565,10 +1565,34 @@ app.post('/api/bulk-game/ocr', upload.single('image'), async (req, res) => {
             console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
           }
         },
-        // Optimize for speed
+        // Optimize specifically for Notes app screenshots (clean, high-contrast text)
         tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:+-$., ',
         tessedit_pageseg_mode: '6', // Single uniform block of text
-        tessedit_ocr_engine_mode: '2' // LSTM OCR Engine Mode
+        tessedit_ocr_engine_mode: '1', // Neural nets LSTM engine (faster than mode 2)
+        tessedit_do_invert: '0', // Don't invert (Notes app is already high contrast)
+        
+        // Speed optimizations for Notes app
+        classify_enable_learning: '0', // Disable learning for speed
+        classify_enable_adaptive_matcher: '0', // Disable adaptive matcher
+        textord_old_baselines: '0', // Use new baseline detection
+        textord_old_xheight: '0', // Use new x-height detection
+        textord_force_make_prop_words: 'F', // Don't force proportional words
+        textord_heavy_nr: '1', // Heavy noise reduction
+        textord_old_kl_merge: '0', // Use new kerning
+        textord_old_to_method: '0', // Use new text order
+        textord_min_linesize: '2.5', // Minimum line size for text
+        textord_min_xheight: '8', // Minimum x-height
+        
+        // Disable visual debugging (major speed improvement)
+        textord_show_final_blobs: '0',
+        textord_show_final_words: '0',
+        textord_show_initial_words: '0',
+        textord_show_initial_blobs: '0',
+        textord_show_final_pages: '0',
+        textord_show_final_boxes: '0',
+        textord_show_final_tables: '0',
+        textord_show_final_lines: '0',
+        textord_tabfind_show_vlines: '0'
       }
     );
 

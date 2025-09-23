@@ -80,9 +80,9 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
       formData.append('image', selectedFile);
       formData.append('date', date);
 
-      // Set a timeout for the API call
+      // Set a timeout for the API call (optimized for Notes app screenshots)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
 
       try {
         // Call OCR API with timeout
@@ -183,13 +183,14 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
             Upload a screenshot of your game tally. The system will extract text using OCR and parse the data automatically.
           </p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">📸 Tips for better OCR results:</h4>
+            <h4 className="text-sm font-medium text-blue-900 mb-2">📱 Optimized for Notes app screenshots:</h4>
             <ul className="text-xs text-blue-800 space-y-1">
-              <li>• Ensure good lighting and clear, readable text</li>
+              <li>• Take a screenshot of your Notes app with the game tally</li>
+              <li>• Ensure text is clear and well-formatted in the Notes app</li>
+              <li>• Use format: "PlayerName: +Amount" or "PlayerName: -Amount"</li>
               <li>• Keep the image under 2MB for faster processing</li>
-              <li>• Crop the image to focus on the text area</li>
-              <li>• Make sure text is horizontal and not rotated</li>
-              <li>• Use format like "PlayerName: +Amount" or "PlayerName: -Amount"</li>
+              <li>• Make sure the text is horizontal and not rotated</li>
+              <li>• The system is optimized for clean, high-contrast text from Notes</li>
             </ul>
           </div>
         </div>
@@ -294,7 +295,7 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
       <p className="text-sm text-gray-600 mb-4">Extracting text from your screenshot using OCR.</p>
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-w-md mx-auto">
         <p className="text-xs text-yellow-800">
-          <strong>Note:</strong> OCR processing can take 10-30 seconds depending on image size and quality. 
+          <strong>Note:</strong> OCR processing is optimized for Notes app screenshots and typically takes 5-15 seconds. 
           Please be patient and don't close this window.
         </p>
       </div>
