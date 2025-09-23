@@ -974,13 +974,9 @@ app.get('/api/settlements', async (req, res) => {
     // Try to get real data from database
     const settlements = await queryDatabase(`
       SELECT 
-        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
-        fp.name as from_player_name,
-        tp.name as to_player_name
-      FROM settlements s
-      JOIN players fp ON s.from_player_id = fp.id
-      JOIN players tp ON s.to_player_id = tp.id
-      ORDER BY s.date DESC, s.created_at DESC
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
+      ORDER BY date DESC, created_at DESC
     `);
     
     if (settlements) {
@@ -1007,13 +1003,9 @@ app.get('/api/settlements/:id', async (req, res) => {
     
     const settlement = await queryDatabase(`
       SELECT 
-        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
-        fp.name as from_player_name,
-        tp.name as to_player_name
-      FROM settlements s
-      JOIN players fp ON s.from_player_id = fp.id
-      JOIN players tp ON s.to_player_id = tp.id
-      WHERE s.id = $1
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
+      WHERE id = $1
     `, [settlementId]);
     
     if (settlement && settlement.length > 0) {
@@ -1060,22 +1052,18 @@ app.post('/api/settlements', async (req, res) => {
     const settlementId = require('crypto').randomUUID();
     await queryDatabase(`
       INSERT INTO settlements (
-        id, from_player_id, to_player_id, amount, date, notes, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-    `, [settlementId, from_player_id, to_player_id, amount, date, notes || null]);
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    `, [settlementId, from_player_id, to_player_id, fromPlayer.name, toPlayer.name, amount, date, notes || null]);
     
     console.log('💰 Settlement created with ID:', settlementId);
     
     // Return the created settlement
     const createdSettlement = await queryDatabase(`
       SELECT 
-        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
-        fp.name as from_player_name,
-        tp.name as to_player_name
-      FROM settlements s
-      JOIN players fp ON s.from_player_id = fp.id
-      JOIN players tp ON s.to_player_id = tp.id
-      WHERE s.id = $1
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
+      WHERE id = $1
     `, [settlementId]);
     
     if (createdSettlement && createdSettlement.length > 0) {
@@ -1149,13 +1137,9 @@ app.put('/api/settlements/:id', async (req, res) => {
     // Return the updated settlement
     const updatedSettlement = await queryDatabase(`
       SELECT 
-        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
-        fp.name as from_player_name,
-        tp.name as to_player_name
-      FROM settlements s
-      JOIN players fp ON s.from_player_id = fp.id
-      JOIN players tp ON s.to_player_id = tp.id
-      WHERE s.id = $1
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
+      WHERE id = $1
     `, [settlementId]);
     
     if (updatedSettlement && updatedSettlement.length > 0) {
