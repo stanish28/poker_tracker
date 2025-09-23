@@ -80,17 +80,41 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
       formData.append('image', selectedFile);
       formData.append('date', date);
 
-      // Call OCR API
-      const result = await apiService.processScreenshot(formData);
-      
-      if (!result.success) {
-        throw new Error('Failed to process image');
-      }
+      // Set a timeout for the API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      setParsedData(result);
-      setStep('preview');
+      try {
+        // Call OCR API with timeout
+        const result = await apiService.processScreenshot(formData, controller.signal);
+        clearTimeout(timeoutId);
+        
+        if (!result.success) {
+          throw new Error('Failed to process image');
+        }
+
+        setParsedData(result);
+        setStep('preview');
+      } catch (abortError) {
+        clearTimeout(timeoutId);
+        if (abortError.name === 'AbortError') {
+          throw new Error('OCR processing timed out. Please try with a smaller or clearer image.');
+        }
+        throw abortError;
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to process image');
+      let errorMessage = err.message || 'Failed to process image';
+      
+      // Handle specific error cases
+      if (err.message?.includes('timeout') || err.message?.includes('timed out')) {
+        errorMessage = 'OCR processing timed out. Please try with a smaller or clearer image.';
+      } else if (err.message?.includes('ERR_CONNECTION_CLOSED')) {
+        errorMessage = 'Connection lost during processing. Please try again with a smaller image.';
+      } else if (err.message?.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      setError(errorMessage);
       setStep('upload');
     } finally {
       setIsLoading(false);
@@ -153,12 +177,22 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
 
   const renderUploadStep = () => (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Import Game from Screenshot</h3>
-        <p className="text-sm text-gray-600">
-          Upload a screenshot of your game tally. The system will extract text using OCR and parse the data automatically.
-        </p>
-      </div>
+        <div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Import Game from Screenshot</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Upload a screenshot of your game tally. The system will extract text using OCR and parse the data automatically.
+          </p>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <h4 className="text-sm font-medium text-blue-900 mb-2">📸 Tips for better OCR results:</h4>
+            <ul className="text-xs text-blue-800 space-y-1">
+              <li>• Ensure good lighting and clear, readable text</li>
+              <li>• Keep the image under 2MB for faster processing</li>
+              <li>• Crop the image to focus on the text area</li>
+              <li>• Make sure text is horizontal and not rotated</li>
+              <li>• Use format like "PlayerName: +Amount" or "PlayerName: -Amount"</li>
+            </ul>
+          </div>
+        </div>
 
       <div>
         <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-2">
@@ -257,7 +291,13 @@ const ScreenshotImportModal: React.FC<ScreenshotImportModalProps> = ({ onClose, 
     <div className="text-center py-8">
       <div className="loading-spinner mx-auto mb-4" />
       <h3 className="text-lg font-medium text-gray-900 mb-2">Processing Image...</h3>
-      <p className="text-sm text-gray-600">Extracting text from your screenshot using OCR.</p>
+      <p className="text-sm text-gray-600 mb-4">Extracting text from your screenshot using OCR.</p>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-w-md mx-auto">
+        <p className="text-xs text-yellow-800">
+          <strong>Note:</strong> OCR processing can take 10-30 seconds depending on image size and quality. 
+          Please be patient and don't close this window.
+        </p>
+      </div>
     </div>
   );
 

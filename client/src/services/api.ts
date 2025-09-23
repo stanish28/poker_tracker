@@ -305,7 +305,7 @@ class ApiService {
   }
 
   // Screenshot OCR endpoints
-  async processScreenshot(formData: FormData): Promise<{
+  async processScreenshot(formData: FormData, signal?: AbortSignal): Promise<{
     success: boolean;
     preview: {
       players: Array<{
@@ -346,6 +346,7 @@ class ApiService {
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
       },
       body: formData,
+      signal,
     };
 
     try {
