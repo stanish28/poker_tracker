@@ -996,6 +996,223 @@ app.get('/api/settlements', async (req, res) => {
   }
 });
 
+// Settlements endpoints (real data with fallback)
+app.get('/api/settlements', async (req, res) => {
+  try {
+    console.log('💰 Settlements endpoint called');
+    // Try to get real data from database
+    const settlements = await queryDatabase(`
+      SELECT 
+        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
+        fp.name as from_player_name,
+        tp.name as to_player_name
+      FROM settlements s
+      JOIN players fp ON s.from_player_id = fp.id
+      JOIN players tp ON s.to_player_id = tp.id
+      ORDER BY s.date DESC, s.created_at DESC
+    `);
+    
+    if (settlements) {
+      console.log('💰 Found', settlements.length, 'settlements in database');
+      res.json(settlements);
+    } else {
+      console.log('💰 No settlements found, using empty array');
+      res.json([]);
+    }
+  } catch (error) {
+    console.error('💰 Error fetching settlements:', error);
+    res.status(500).json({ error: 'Failed to fetch settlements' });
+  }
+});
+
+app.get('/api/settlements/:id', async (req, res) => {
+  try {
+    const settlementId = req.params.id;
+    console.log('💰 Individual settlement endpoint called for settlement:', settlementId);
+    
+    const settlement = await queryDatabase(`
+      SELECT 
+        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
+        fp.name as from_player_name,
+        tp.name as to_player_name
+      FROM settlements s
+      JOIN players fp ON s.from_player_id = fp.id
+      JOIN players tp ON s.to_player_id = tp.id
+      WHERE s.id = $1
+    `, [settlementId]);
+    
+    if (settlement && settlement.length > 0) {
+      console.log('💰 Found settlement in database');
+      res.json(settlement[0]);
+    } else {
+      console.log('💰 Settlement not found');
+      res.status(404).json({ error: 'Settlement not found' });
+    }
+  } catch (error) {
+    console.error('💰 Error fetching individual settlement:', error);
+    res.status(500).json({ error: 'Failed to fetch settlement' });
+  }
+});
+
+app.post('/api/settlements', async (req, res) => {
+  try {
+    const { from_player_id, to_player_id, amount, date, notes } = req.body;
+    console.log('💰 Create settlement endpoint called');
+    console.log('💰 Request body:', JSON.stringify(req.body, null, 2));
+    
+    if (!from_player_id || !to_player_id || !amount || !date) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Validate players exist
+    const players = await queryDatabase(
+      'SELECT id, name FROM players WHERE id IN ($1, $2)',
+      [from_player_id, to_player_id]
+    );
+    
+    if (!players || players.length !== 2) {
+      return res.status(400).json({ error: 'One or more players not found' });
+    }
+    
+    const fromPlayer = players.find(p => p.id === from_player_id);
+    const toPlayer = players.find(p => p.id === to_player_id);
+    
+    if (!fromPlayer || !toPlayer) {
+      return res.status(400).json({ error: 'Invalid player selection' });
+    }
+    
+    const settlementId = require('crypto').randomUUID();
+    await queryDatabase(`
+      INSERT INTO settlements (
+        id, from_player_id, to_player_id, amount, date, notes, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `, [settlementId, from_player_id, to_player_id, amount, date, notes || null]);
+    
+    console.log('💰 Settlement created with ID:', settlementId);
+    
+    // Return the created settlement
+    const createdSettlement = await queryDatabase(`
+      SELECT 
+        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
+        fp.name as from_player_name,
+        tp.name as to_player_name
+      FROM settlements s
+      JOIN players fp ON s.from_player_id = fp.id
+      JOIN players tp ON s.to_player_id = tp.id
+      WHERE s.id = $1
+    `, [settlementId]);
+    
+    if (createdSettlement && createdSettlement.length > 0) {
+      res.status(201).json(createdSettlement[0]);
+    } else {
+      res.status(201).json({ id: settlementId, message: 'Settlement created successfully' });
+    }
+  } catch (error) {
+    console.error('💰 Error creating settlement:', error);
+    res.status(500).json({ error: 'Failed to create settlement' });
+  }
+});
+
+app.put('/api/settlements/:id', async (req, res) => {
+  try {
+    const settlementId = req.params.id;
+    const { amount, date, notes } = req.body;
+    console.log('💰 Update settlement endpoint called for settlement:', settlementId);
+    
+    if (!settlementId) {
+      return res.status(400).json({ error: 'Settlement ID is required' });
+    }
+    
+    // Check if settlement exists
+    const existingSettlement = await queryDatabase('SELECT id FROM settlements WHERE id = $1', [settlementId]);
+    if (!existingSettlement || existingSettlement.length === 0) {
+      return res.status(404).json({ error: 'Settlement not found' });
+    }
+    
+    // Update settlement
+    const updateFields = [];
+    const updateValues = [];
+    let paramCount = 1;
+    
+    if (amount !== undefined) {
+      updateFields.push(`amount = $${paramCount}`);
+      updateValues.push(amount);
+      paramCount++;
+    }
+    
+    if (date !== undefined) {
+      updateFields.push(`date = $${paramCount}`);
+      updateValues.push(date);
+      paramCount++;
+    }
+    
+    if (notes !== undefined) {
+      updateFields.push(`notes = $${paramCount}`);
+      updateValues.push(notes);
+      paramCount++;
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    updateValues.push(settlementId);
+    
+    const updateQuery = `
+      UPDATE settlements 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+    `;
+    
+    await queryDatabase(updateQuery, updateValues);
+    
+    console.log('💰 Settlement updated successfully:', settlementId);
+    
+    // Return the updated settlement
+    const updatedSettlement = await queryDatabase(`
+      SELECT 
+        s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
+        fp.name as from_player_name,
+        tp.name as to_player_name
+      FROM settlements s
+      JOIN players fp ON s.from_player_id = fp.id
+      JOIN players tp ON s.to_player_id = tp.id
+      WHERE s.id = $1
+    `, [settlementId]);
+    
+    if (updatedSettlement && updatedSettlement.length > 0) {
+      res.json(updatedSettlement[0]);
+    } else {
+      res.status(404).json({ error: 'Settlement not found' });
+    }
+  } catch (error) {
+    console.error('💰 Error updating settlement:', error);
+    res.status(500).json({ error: 'Failed to update settlement' });
+  }
+});
+
+app.delete('/api/settlements/:id', async (req, res) => {
+  try {
+    const settlementId = req.params.id;
+    console.log('💰 Delete settlement endpoint called for settlement:', settlementId);
+    
+    // Check if settlement exists
+    const existingSettlement = await queryDatabase('SELECT id FROM settlements WHERE id = $1', [settlementId]);
+    if (!existingSettlement || existingSettlement.length === 0) {
+      return res.status(404).json({ error: 'Settlement not found' });
+    }
+    
+    await queryDatabase('DELETE FROM settlements WHERE id = $1', [settlementId]);
+    
+    console.log('💰 Settlement deleted successfully:', settlementId);
+    res.json({ message: 'Settlement deleted successfully' });
+  } catch (error) {
+    console.error('💰 Error deleting settlement:', error);
+    res.status(500).json({ error: 'Failed to delete settlement' });
+  }
+});
+
 app.get('/api/settlements/stats/overview', async (req, res) => {
   try {
     console.log('💰 Settlements stats endpoint called');
@@ -1023,6 +1240,53 @@ app.get('/api/settlements/stats/overview', async (req, res) => {
   } catch (error) {
     console.error('💰 Error fetching settlement stats:', error);
     res.status(500).json({ error: 'Failed to fetch settlement stats' });
+  }
+});
+
+app.get('/api/settlements/player/:playerId/debts', async (req, res) => {
+  try {
+    const playerId = req.params.playerId;
+    console.log('💰 Player debts endpoint called for player:', playerId);
+    
+    // Check if player exists
+    const player = await queryDatabase('SELECT id, name FROM players WHERE id = $1', [playerId]);
+    if (!player || player.length === 0) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    // Get debts owed by this player
+    const debtsOwed = await queryDatabase(`
+      SELECT 
+        s.id, s.to_player_name, s.amount, s.date, s.notes
+      FROM settlements s
+      WHERE s.from_player_id = $1
+      ORDER BY s.date DESC
+    `, [playerId]);
+    
+    // Get debts owed to this player
+    const debtsOwedTo = await queryDatabase(`
+      SELECT 
+        s.id, s.from_player_name, s.amount, s.date, s.notes
+      FROM settlements s
+      WHERE s.to_player_id = $1
+      ORDER BY s.date DESC
+    `, [playerId]);
+    
+    const totalOwed = (debtsOwed || []).reduce((sum, debt) => sum + parseFloat(debt.amount || 0), 0);
+    const totalOwedTo = (debtsOwedTo || []).reduce((sum, debt) => sum + parseFloat(debt.amount || 0), 0);
+    const netDebt = totalOwedTo - totalOwed;
+    
+    res.json({
+      player: { id: player[0].id, name: player[0].name },
+      debtsOwed: debtsOwed || [],
+      debtsOwedTo: debtsOwedTo || [],
+      totalOwed,
+      totalOwedTo,
+      netDebt
+    });
+  } catch (error) {
+    console.error('💰 Error fetching player debts:', error);
+    res.status(500).json({ error: 'Failed to fetch player debt information' });
   }
 });
 
@@ -1266,30 +1530,60 @@ app.get('/api/bulk-game/players', async (req, res) => {
  * POST /api/bulk-game/ocr
  */
 app.post('/api/bulk-game/ocr', upload.single('image'), async (req, res) => {
+  // Set a timeout to prevent hanging requests
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(408).json({ 
+        error: 'OCR processing timed out. Please try with a smaller image or better quality text.',
+        timeout: true
+      });
+    }
+  }, 25000); // 25 second timeout (leaving buffer for Vercel's 30s limit)
+
   try {
     if (!req.file) {
+      clearTimeout(timeout);
       return res.status(400).json({ error: 'No image file provided' });
     }
 
     const { date } = req.body;
     const imageBuffer = req.file.buffer;
 
-    console.log('Processing image with OCR...');
+    console.log('Processing image with OCR...', {
+      fileSize: imageBuffer.length,
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype
+    });
     
-    // Perform OCR on the image
+    // Optimize Tesseract configuration for faster processing
     const { data: { text } } = await Tesseract.recognize(
       imageBuffer,
       'eng',
       {
-        logger: m => console.log(m)
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+          }
+        },
+        // Optimize for speed
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:+-$., ',
+        tessedit_pageseg_mode: '6', // Single uniform block of text
+        tessedit_ocr_engine_mode: '2' // LSTM OCR Engine Mode
       }
     );
 
+    clearTimeout(timeout);
     console.log('OCR Text extracted:', text);
 
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ 
-        error: 'No text could be extracted from the image. Please ensure the image contains clear, readable text.' 
+        error: 'No text could be extracted from the image. Please ensure the image contains clear, readable text.',
+        suggestions: [
+          'Try taking a photo with better lighting',
+          'Ensure text is clearly visible and not blurry',
+          'Try cropping the image to focus on the text area',
+          'Make sure the text is horizontal and not rotated'
+        ]
       });
     }
 
@@ -1303,7 +1597,12 @@ app.post('/api/bulk-game/ocr', upload.single('image'), async (req, res) => {
         error: 'Could not parse game data from the image',
         details: validation.errors,
         warnings: validation.warnings,
-        extractedText: text
+        extractedText: text,
+        suggestions: [
+          'Check that the image shows player names and amounts clearly',
+          'Ensure the format matches: "PlayerName: +Amount" or "PlayerName: -Amount"',
+          'Try retaking the photo with better focus on the text'
+        ]
       });
     }
 
@@ -1336,10 +1635,25 @@ app.post('/api/bulk-game/ocr', upload.single('image'), async (req, res) => {
     });
 
   } catch (error) {
+    clearTimeout(timeout);
     console.error('Error processing image with OCR:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to process image';
+    if (error.message.includes('timeout')) {
+      errorMessage = 'OCR processing timed out. Please try with a smaller or clearer image.';
+    } else if (error.message.includes('memory')) {
+      errorMessage = 'Image too large. Please try with a smaller image.';
+    }
+    
     res.status(500).json({ 
-      error: 'Failed to process image',
-      details: error.message 
+      error: errorMessage,
+      details: error.message,
+      suggestions: [
+        'Try with a smaller image (under 2MB)',
+        'Ensure the image has clear, readable text',
+        'Try cropping the image to focus on the text area'
+      ]
     });
   }
 });
