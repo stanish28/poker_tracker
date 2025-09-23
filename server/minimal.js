@@ -974,35 +974,6 @@ app.get('/api/settlements', async (req, res) => {
     // Try to get real data from database
     const settlements = await queryDatabase(`
       SELECT 
-        s.id, s.amount, s.notes, s.date, s.created_at,
-        fp.name as from_player_name,
-        tp.name as to_player_name
-      FROM settlements s
-      JOIN players fp ON s.from_player_id = fp.id
-      JOIN players tp ON s.to_player_id = tp.id
-      ORDER BY s.date DESC
-    `);
-    
-    if (settlements) {
-      console.log('💰 Found', settlements.length, 'settlements in database');
-      res.json(settlements);
-    } else {
-      console.log('💰 No settlements found, using empty array');
-      res.json([]);
-    }
-  } catch (error) {
-    console.error('💰 Error fetching settlements:', error);
-    res.status(500).json({ error: 'Failed to fetch settlements' });
-  }
-});
-
-// Settlements endpoints (real data with fallback)
-app.get('/api/settlements', async (req, res) => {
-  try {
-    console.log('💰 Settlements endpoint called');
-    // Try to get real data from database
-    const settlements = await queryDatabase(`
-      SELECT 
         s.id, s.from_player_id, s.to_player_id, s.amount, s.date, s.notes, s.created_at,
         fp.name as from_player_name,
         tp.name as to_player_name
@@ -1014,6 +985,10 @@ app.get('/api/settlements', async (req, res) => {
     
     if (settlements) {
       console.log('💰 Found', settlements.length, 'settlements in database');
+      // Debug: Log the first settlement's date format
+      if (settlements.length > 0) {
+        console.log('💰 First settlement date:', settlements[0].date, 'Type:', typeof settlements[0].date);
+      }
       res.json(settlements);
     } else {
       console.log('💰 No settlements found, using empty array');
@@ -1059,6 +1034,7 @@ app.post('/api/settlements', async (req, res) => {
     const { from_player_id, to_player_id, amount, date, notes } = req.body;
     console.log('💰 Create settlement endpoint called');
     console.log('💰 Request body:', JSON.stringify(req.body, null, 2));
+    console.log('💰 Date received:', date, 'Type:', typeof date);
     
     if (!from_player_id || !to_player_id || !amount || !date) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -1103,6 +1079,7 @@ app.post('/api/settlements', async (req, res) => {
     `, [settlementId]);
     
     if (createdSettlement && createdSettlement.length > 0) {
+      console.log('💰 Created settlement date:', createdSettlement[0].date, 'Type:', typeof createdSettlement[0].date);
       res.status(201).json(createdSettlement[0]);
     } else {
       res.status(201).json({ id: settlementId, message: 'Settlement created successfully' });

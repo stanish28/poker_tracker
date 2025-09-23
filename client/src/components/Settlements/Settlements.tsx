@@ -95,7 +95,29 @@ const Settlements: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return 'No date';
+    
+    // Try to parse the date string
+    let date: Date;
+    
+    // Handle different date formats
+    if (dateString.includes('T')) {
+      // ISO string format
+      date = new Date(dateString);
+    } else if (dateString.includes('-')) {
+      // YYYY-MM-DD format
+      date = new Date(dateString + 'T00:00:00');
+    } else {
+      // Try direct parsing
+      date = new Date(dateString);
+    }
+    
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date string:', dateString);
+      return 'Invalid Date';
+    }
+    
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
