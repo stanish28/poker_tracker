@@ -19,20 +19,18 @@ router.get('/', async (req, res) => {
     let params = [];
     
     if (playerId) {
-      // Filter games by player ID
+      // Filter games by player ID - simplified query
       query = `
         SELECT 
           g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
           g.is_completed, g.created_at, g.updated_at,
-          COUNT(gp.player_id) as player_count
+          (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
         FROM games g
-        LEFT JOIN game_players gp ON g.id = gp.game_id
         WHERE g.id IN (
           SELECT DISTINCT game_id 
           FROM game_players 
           WHERE player_id = ?
         )
-        GROUP BY g.id
         ORDER BY g.date DESC, g.created_at DESC
       `;
       params = [playerId];
