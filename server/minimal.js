@@ -834,7 +834,9 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         newBuyin: buyin,
         oldCashout,
         newCashout: cashout,
-        timestamp: new Date().toISOString()
+        rowsAffected: updateResult?.rowCount || 0,
+        timestamp: new Date().toISOString(),
+        version: 'v2.0-numbers-not-strings'
       }
     });
   } catch (error) {
