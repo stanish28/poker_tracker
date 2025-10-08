@@ -783,11 +783,16 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
       playerId
     });
     
-    // Update game player amounts - use CAST to ensure type compatibility
+    // Try UPDATE with explicit RETURNING clause to see if it's a transaction issue
     const updateResult = await queryDatabase(`
       UPDATE game_players 
-      SET buyin = CAST($1 AS DECIMAL), cashout = CAST($2 AS DECIMAL), profit = CAST($3 AS DECIMAL), updated_at = NOW()
-      WHERE game_id = $4 AND player_id = $5
+      SET 
+        buyin = $1::numeric,
+        cashout = $2::numeric,
+        profit = $3::numeric,
+        updated_at = NOW()
+      WHERE game_id = $4::uuid AND player_id = $5::uuid
+      RETURNING *
     `, [buyin, cashout, newProfit, gameId, playerId]);
     
     console.log('🔧 UPDATE query result:', updateResult);
@@ -850,11 +855,12 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         newBuyin: buyin,
         oldCashout,
         newCashout: cashout,
-        rowsAffected: updateResult?.rowCount || 0,
+        rowsAffected: updateResult?.rowCount || (updateResult?.length || 0),
         recordFound: existingRecord && existingRecord.length > 0,
         currentDbBuyin: existingRecord && existingRecord.length > 0 ? existingRecord[0].buyin : 'NOT FOUND',
+        returningData: updateResult && updateResult.length > 0 ? updateResult[0] : null,
         timestamp: new Date().toISOString(),
-        version: 'v2.1-with-cast'
+        version: 'v2.2-with-returning'
       }
     });
   } catch (error) {
