@@ -165,6 +165,20 @@ class ApiService {
     return this.request<GameStats>('/games/stats/overview');
   }
 
+  async updatePlayerInGame(gameId: string, playerId: string, buyin: number, cashout: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/games/${gameId}/players/${playerId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ buyin, cashout }),
+    });
+  }
+
+  async addPlayerToGame(gameId: string, playerId: string, buyin: number, cashout: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/games/${gameId}/players`, {
+      method: 'POST',
+      body: JSON.stringify({ player_id: playerId, buyin, cashout }),
+    });
+  }
+
   // Settlement endpoints
   async getSettlements(): Promise<Settlement[]> {
     return this.request<Settlement[]>('/settlements');

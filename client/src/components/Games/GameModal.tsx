@@ -165,23 +165,12 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         // Add new players to the game
         for (const newPlayer of playersToAdd) {
           try {
-            const response = await fetch(`/api/games/${game.id}/players`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              },
-              body: JSON.stringify({
-                player_id: newPlayer.player_id,
-                buyin: parseFloat(newPlayer.buyin.toString()),
-                cashout: parseFloat(newPlayer.cashout.toString())
-              })
-            });
-            
-            if (!response.ok) {
-              const errorData = await response.json();
-              console.warn('Could not add player to game:', errorData);
-            }
+            await apiService.addPlayerToGame(
+              game.id,
+              newPlayer.player_id,
+              parseFloat(newPlayer.buyin.toString()),
+              parseFloat(newPlayer.cashout.toString())
+            );
           } catch (addErr) {
             console.warn('Could not add player to game:', addErr);
           }
@@ -190,22 +179,12 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         // Update existing players' amounts
         for (const gamePlayer of playersToUpdate) {
           try {
-            const response = await fetch(`/api/games/${game.id}/players/${gamePlayer.player_id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
-              },
-              body: JSON.stringify({
-                buyin: parseFloat(gamePlayer.buyin.toString()),
-                cashout: parseFloat(gamePlayer.cashout.toString())
-              })
-            });
-            
-            if (!response.ok) {
-              const errorData = await response.json();
-              console.warn('Could not update player amounts:', errorData);
-            }
+            await apiService.updatePlayerInGame(
+              game.id,
+              gamePlayer.player_id,
+              parseFloat(gamePlayer.buyin.toString()),
+              parseFloat(gamePlayer.cashout.toString())
+            );
           } catch (updateErr) {
             console.warn('Could not update player amounts:', updateErr);
           }
