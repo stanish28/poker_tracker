@@ -885,13 +885,21 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         recordFound: existingRecord && existingRecord.length > 0,
         currentDbBuyin: existingRecord && existingRecord.length > 0 ? existingRecord[0].buyin : 'NOT FOUND',
         returningData: updateResult?.rows && updateResult.rows.length > 0 ? updateResult.rows[0] : null,
+        updateResultType: typeof updateResult,
+        updateResultKeys: updateResult ? Object.keys(updateResult) : [],
+        rawUpdateResult: updateResult,
         timestamp: new Date().toISOString(),
-        version: 'v2.3-fixed-returning-handler'
+        version: 'v2.4-debug-update-result'
       }
     });
   } catch (error) {
     console.error('Error updating player amounts:', error);
-    res.status(500).json({ error: 'Failed to update player amounts' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to update player amounts',
+      details: error.message,
+      stack: error.stack
+    });
   }
 });
 
