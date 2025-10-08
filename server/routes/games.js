@@ -52,7 +52,7 @@ router.get('/', async (req, res) => {
     const games = await allQuery(query, params);
     console.log(`Returning ${games.length} games for playerId:`, playerId);
     
-    // Additional debugging - let's check if the player actually exists in game_players
+    // Return debugging info in the response headers
     if (playerId) {
       const playerGames = await allQuery(
         'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
@@ -60,9 +60,11 @@ router.get('/', async (req, res) => {
       );
       console.log(`Player ${playerId} is in ${playerGames.length} games:`, playerGames.map(g => g.game_id));
       
-      // Let's also check what players are actually in the database
-      const allPlayerIds = await allQuery('SELECT DISTINCT player_id FROM game_players LIMIT 5');
-      console.log('Sample player IDs in game_players table:', allPlayerIds.map(p => p.player_id));
+      // Set debugging info in response headers
+      res.setHeader('X-Debug-PlayerId', playerId);
+      res.setHeader('X-Debug-PlayerGames', playerGames.length);
+      res.setHeader('X-Debug-FilteredGames', games.length);
+      res.setHeader('X-Debug-Query', query.substring(0, 100) + '...');
     }
     
     res.json(games);

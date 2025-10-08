@@ -47,6 +47,20 @@ class ApiService {
     try {
       const response = await fetch(url, config);
       
+      // Log debugging headers for games endpoint
+      if (endpoint.includes('/games') && !endpoint.includes('/test-filter')) {
+        const debugPlayerId = response.headers.get('X-Debug-PlayerId');
+        const debugPlayerGames = response.headers.get('X-Debug-PlayerGames');
+        const debugFilteredGames = response.headers.get('X-Debug-FilteredGames');
+        const debugQuery = response.headers.get('X-Debug-Query');
+        
+        console.log('🔍 Backend Debug Info:');
+        console.log('  Player ID:', debugPlayerId);
+        console.log('  Player Games Count:', debugPlayerGames);
+        console.log('  Filtered Games Count:', debugFilteredGames);
+        console.log('  Query:', debugQuery);
+      }
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new ApiError(
