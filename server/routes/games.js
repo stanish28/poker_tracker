@@ -461,6 +461,16 @@ router.put('/:gameId/players/:playerId', [
   }
 });
 
+// Simple test endpoint
+router.get('/test', (req, res) => {
+  res.json({ 
+    message: 'Backend is working',
+    timestamp: new Date().toISOString(),
+    query: req.query,
+    url: req.url
+  });
+});
+
 // Test endpoint to verify player filtering
 router.get('/test-filter/:playerId', async (req, res) => {
   try {
