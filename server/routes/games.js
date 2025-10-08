@@ -76,7 +76,25 @@ router.get('/', async (req, res) => {
       });
     }
     
-    res.json(games);
+    // Temporary debug response - include debug info in the response
+    if (playerId) {
+      const playerGames = await allQuery(
+        'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
+        [playerId]
+      );
+      res.json({
+        games: games,
+        debug: {
+          playerId: playerId,
+          playerGamesCount: playerGames.length,
+          filteredGamesCount: games.length,
+          isFiltered: true,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } else {
+      res.json(games);
+    }
   } catch (error) {
     console.error('Error fetching games:', error);
     res.status(500).json({ error: 'Failed to fetch games' });

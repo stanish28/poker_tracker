@@ -148,9 +148,22 @@ class ApiService {
   async getGames(playerId?: string): Promise<Game[]> {
     const params = playerId ? `?playerId=${playerId}` : '';
     console.log('API: getGames called with playerId:', playerId, 'URL:', `/games${params}`);
-    const result = await this.request<Game[]>(`/games${params}`);
-    console.log('API: getGames returned', result.length, 'games');
-    return result;
+    const result = await this.request<any>(`/games${params}`);
+    
+    // Handle debug response
+    if (result.debug) {
+      console.log('🔍 Backend Debug Info (from response):');
+      console.log('  Player ID:', result.debug.playerId);
+      console.log('  Player Games Count:', result.debug.playerGamesCount);
+      console.log('  Filtered Games Count:', result.debug.filteredGamesCount);
+      console.log('  Is Filtered:', result.debug.isFiltered);
+      console.log('  Timestamp:', result.debug.timestamp);
+      console.log('API: getGames returned', result.games.length, 'games');
+      return result.games;
+    } else {
+      console.log('API: getGames returned', result.length, 'games');
+      return result;
+    }
   }
 
   async getGame(id: string): Promise<GameWithPlayers> {
