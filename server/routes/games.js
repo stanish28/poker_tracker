@@ -453,6 +453,47 @@ router.put('/:gameId/players/:playerId', [
   }
 });
 
+// Test endpoint to verify player filtering
+router.get('/test-filter/:playerId', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    console.log('Testing filter for playerId:', playerId);
+    
+    // Test the subquery first
+    const playerGames = await allQuery(
+      'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
+      [playerId]
+    );
+    console.log('Player games found:', playerGames);
+    
+    // Test the full query
+    const filteredGames = await allQuery(`
+      SELECT 
+        g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
+        g.is_completed, g.created_at, g.updated_at,
+        (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
+      FROM games g
+      WHERE g.id IN (
+        SELECT DISTINCT game_id 
+        FROM game_players 
+        WHERE player_id = ?
+      )
+      ORDER BY g.date DESC, g.created_at DESC
+    `, [playerId]);
+    
+    res.json({
+      playerId: playerId,
+      playerGamesCount: playerGames.length,
+      filteredGamesCount: filteredGames.length,
+      playerGames: playerGames,
+      filteredGames: filteredGames
+    });
+  } catch (error) {
+    console.error('Test filter error:', error);
+    res.status(500).json({ error: 'Test filter failed' });
+  }
+});
+
 // Get game statistics
 router.get('/stats/overview', async (req, res) => {
   try {
