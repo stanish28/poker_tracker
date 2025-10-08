@@ -804,16 +804,15 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
       playerId
     });
     
-    // Try UPDATE with table name qualification and explicit WHERE
+    // UPDATE without updated_at column (it doesn't exist in game_players table)
     const updateQuery = `
       UPDATE game_players 
       SET 
         buyin = $1,
         cashout = $2,
-        profit = $3,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE game_players.game_id = $4 
-        AND game_players.player_id = $5
+        profit = $3
+      WHERE game_id = $4 
+        AND player_id = $5
       RETURNING buyin, cashout, profit, game_id, player_id
     `;
     const updateParams = [
@@ -910,11 +909,7 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         rawUpdateResult: updateResult,
         updateError: updateError,
         timestamp: new Date().toISOString(),
-        hasError: updateResult?.error || false,
-        errorMessage: updateResult?.message || null,
-        errorCode: updateResult?.code || null,
-        errorDetail: updateResult?.detail || null,
-        version: 'v2.6-return-query-error'
+        version: 'v3.0-FIXED-removed-updated-at'
       }
     });
   } catch (error) {
