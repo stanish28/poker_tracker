@@ -892,6 +892,12 @@ app.get('/api/games/:id', async (req, res) => {
         ORDER BY p.name
       `, [gameId]);
       
+      console.log('🎮 Fetched game players:', gamePlayers.map(gp => ({
+        name: gp.player_name,
+        buyin: gp.buyin,
+        cashout: gp.cashout
+      })));
+      
       // Combine game data with players
       const gameWithPlayers = {
         ...game[0],

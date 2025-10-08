@@ -169,6 +169,12 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         const playersToAdd = formData.players.filter(gp => !currentPlayerIds.includes(gp.player_id));
         const playersToUpdate = formData.players.filter(gp => currentPlayerIds.includes(gp.player_id));
         
+        console.log('💾 About to save. Current formData.players:', formData.players.map(gp => ({
+          name: getPlayerName(gp.player_id),
+          buyin: gp.buyin,
+          cashout: gp.cashout
+        })));
+        
         // Add new players to the game
         for (const newPlayer of playersToAdd) {
           try {
@@ -186,9 +192,11 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         // Update existing players' amounts
         for (const gamePlayer of playersToUpdate) {
           try {
-            console.log('Updating player:', {
+            const playerName = getPlayerName(gamePlayer.player_id);
+            console.log(`Updating player ${playerName}:`, {
               gameId: game.id,
               playerId: gamePlayer.player_id,
+              playerName: playerName,
               buyin: parseFloat(gamePlayer.buyin.toString()),
               cashout: parseFloat(gamePlayer.cashout.toString())
             });
@@ -198,7 +206,7 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
               parseFloat(gamePlayer.buyin.toString()),
               parseFloat(gamePlayer.cashout.toString())
             );
-            console.log('Player updated successfully. Backend response:', updateResponse);
+            console.log(`${playerName} updated successfully. Backend response:`, updateResponse);
           } catch (updateErr) {
             console.error('Could not update player amounts:', updateErr);
           }
