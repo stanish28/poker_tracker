@@ -12,6 +12,11 @@ router.use(authenticateToken);
 // Get all games (with optional player filter)
 router.get('/', async (req, res) => {
   try {
+    console.log('🎯 BACKEND DEBUG: Games endpoint function called!');
+    console.log('  Request URL:', req.url);
+    console.log('  Request method:', req.method);
+    console.log('  Timestamp:', new Date().toISOString());
+    
     const { playerId } = req.query;
     console.log('Games endpoint called with playerId:', playerId);
     console.log('Full query object:', req.query);
@@ -77,12 +82,22 @@ router.get('/', async (req, res) => {
       });
     }
     
+    // DEBUG: About to return data to frontend
+    console.log('🚀 BACKEND DEBUG: About to return data to frontend');
+    console.log('  playerId:', playerId);
+    console.log('  games.length:', games.length);
+    console.log('  timestamp:', new Date().toISOString());
+    
     // Temporary debug response - include debug info in the response
     if (playerId) {
       const playerGames = await allQuery(
         'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
         [playerId]
       );
+      console.log('🚀 BACKEND DEBUG: Returning filtered games for playerId:', playerId);
+      console.log('  playerGames.length:', playerGames.length);
+      console.log('  filteredGames.length:', games.length);
+      
       res.json({
         games: games,
         debug: {
@@ -94,6 +109,7 @@ router.get('/', async (req, res) => {
         }
       });
     } else {
+      console.log('🚀 BACKEND DEBUG: Returning all games (no filter)');
       // Add version info to all responses
       res.json({
         games: games,
