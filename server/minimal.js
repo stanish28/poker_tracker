@@ -753,24 +753,13 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
     const playerId = req.params.playerId;
     const { buyin, cashout } = req.body;
     
-    console.log('🔧 UPDATE PLAYER endpoint called:', {
-      gameId,
-      playerId,
-      buyin,
-      cashout,
-      timestamp: new Date().toISOString()
-    });
-    
     // Get OLD values BEFORE updating
     const oldGamePlayer = await queryDatabase(
       'SELECT buyin, cashout, profit FROM game_players WHERE game_id = $1 AND player_id = $2',
       [gameId, playerId]
     );
 
-    console.log('🔧 Old player values:', oldGamePlayer);
-
     if (!oldGamePlayer || oldGamePlayer.length === 0) {
-      console.error('🔧 Player not found in game');
       return res.status(404).json({ error: 'Player not found in this game' });
     }
 
@@ -780,68 +769,13 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
     
     const newProfit = parseFloat(cashout || 0) - parseFloat(buyin || 0);
     
-    // First, let's verify the record exists
-    const existingRecord = await queryDatabase(`
-      SELECT * FROM game_players 
-      WHERE game_id = $1 AND player_id = $2
-    `, [gameId, playerId]);
-    
-    console.log('🔧 Existing record check:', {
-      found: existingRecord && existingRecord.length > 0,
-      gameId: gameId,
-      playerId: playerId,
-      gameIdType: typeof gameId,
-      playerIdType: typeof playerId,
-      currentBuyin: existingRecord && existingRecord.length > 0 ? existingRecord[0].buyin : 'NOT FOUND',
-      currentCashout: existingRecord && existingRecord.length > 0 ? existingRecord[0].cashout : 'NOT FOUND'
-    });
-    
-    console.log('🔧 About to execute UPDATE query with params:', {
-      buyin: parseFloat(buyin),
-      cashout: parseFloat(cashout),
-      profit: newProfit,
-      gameId,
-      playerId
-    });
-    
-    // UPDATE without updated_at column (it doesn't exist in game_players table)
-    const updateQuery = `
+    // Update game player amounts
+    const updateResult = await queryDatabase(`
       UPDATE game_players 
-      SET 
-        buyin = $1,
-        cashout = $2,
-        profit = $3
-      WHERE game_id = $4 
-        AND player_id = $5
-      RETURNING buyin, cashout, profit, game_id, player_id
-    `;
-    const updateParams = [
-      parseFloat(buyin), 
-      parseFloat(cashout), 
-      parseFloat(newProfit), 
-      gameId, 
-      playerId
-    ];
-    
-    console.log('🔧 Final UPDATE attempt:', {
-      query: updateQuery,
-      params: updateParams
-    });
-    
-    let updateResult;
-    let updateError = null;
-    try {
-      updateResult = await queryDatabase(updateQuery, updateParams);
-      console.log('🔧 UPDATE query result:', updateResult);
-      console.log('🔧 Rows affected:', updateResult?.rowCount);
-    } catch (err) {
-      updateError = {
-        message: err.message,
-        code: err.code,
-        detail: err.detail
-      };
-      console.error('🔧 UPDATE query error:', updateError);
-    }
+      SET buyin = $1, cashout = $2, profit = $3
+      WHERE game_id = $4 AND player_id = $5
+      RETURNING buyin, cashout, profit
+    `, [parseFloat(buyin), parseFloat(cashout), newProfit, gameId, playerId]);
     
     // Update game totals
     const gameStats = await queryDatabase(`
@@ -879,47 +813,10 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
       WHERE id = $4
     `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
     
-    console.log('🔧 Update complete:', {
-      profitDifference,
-      buyinDifference,
-      cashoutDifference,
-      newProfit,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Add debug headers to verify backend processing
-    res.setHeader('X-Update-Timestamp', new Date().toISOString());
-    res.setHeader('X-New-Buyin', buyin.toString());
-    res.setHeader('X-New-Cashout', cashout.toString());
-    res.json({ 
-      message: 'Player amounts updated successfully',
-      debug: {
-        gameId,
-        playerId,
-        oldBuyin,
-        newBuyin: buyin,
-        oldCashout,
-        newCashout: cashout,
-        rowsAffected: updateResult?.rowCount || 0,
-        recordFound: existingRecord && existingRecord.length > 0,
-        currentDbBuyin: existingRecord && existingRecord.length > 0 ? existingRecord[0].buyin : 'NOT FOUND',
-        returningData: updateResult?.rows && updateResult.rows.length > 0 ? updateResult.rows[0] : null,
-        updateResultType: typeof updateResult,
-        updateResultKeys: updateResult ? Object.keys(updateResult) : [],
-        rawUpdateResult: updateResult,
-        updateError: updateError,
-        timestamp: new Date().toISOString(),
-        version: 'v3.0-FIXED-removed-updated-at'
-      }
-    });
+    res.json({ message: 'Player amounts updated successfully' });
   } catch (error) {
     console.error('Error updating player amounts:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ 
-      error: 'Failed to update player amounts',
-      details: error.message,
-      stack: error.stack
-    });
+    res.status(500).json({ error: 'Failed to update player amounts' });
   }
 });
 
@@ -972,12 +869,6 @@ app.get('/api/games/:id', async (req, res) => {
         WHERE gp.game_id = $1
         ORDER BY p.name
       `, [gameId]);
-      
-      console.log('🎮 Fetched game players:', gamePlayers.map(gp => ({
-        name: gp.player_name,
-        buyin: gp.buyin,
-        cashout: gp.cashout
-      })));
       
       // Combine game data with players
       const gameWithPlayers = {

@@ -33,15 +33,8 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
       if (game) {
         try {
           setIsLoading(true);
-          console.log('📝 Loading game data for game:', game.id);
           // Fetch the full game details with players
           const gameDetails = await apiService.getGame(game.id);
-          console.log('📝 Received game details:', gameDetails);
-          console.log('📝 Players:', gameDetails.players.map(p => ({
-            name: p.player_name,
-            buyin: p.buyin,
-            cashout: p.cashout
-          })));
           setFormData({
             date: game.date,
             players: gameDetails.players.map(p => ({
@@ -169,12 +162,6 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         const playersToAdd = formData.players.filter(gp => !currentPlayerIds.includes(gp.player_id));
         const playersToUpdate = formData.players.filter(gp => currentPlayerIds.includes(gp.player_id));
         
-        console.log('💾 About to save. Current formData.players:', formData.players.map(gp => ({
-          name: getPlayerName(gp.player_id),
-          buyin: gp.buyin,
-          cashout: gp.cashout
-        })));
-        
         // Add new players to the game
         for (const newPlayer of playersToAdd) {
           try {
@@ -192,21 +179,12 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         // Update existing players' amounts
         for (const gamePlayer of playersToUpdate) {
           try {
-            const playerName = getPlayerName(gamePlayer.player_id);
-            console.log(`Updating player ${playerName}:`, {
-              gameId: game.id,
-              playerId: gamePlayer.player_id,
-              playerName: playerName,
-              buyin: parseFloat(gamePlayer.buyin.toString()),
-              cashout: parseFloat(gamePlayer.cashout.toString())
-            });
-            const updateResponse = await apiService.updatePlayerInGame(
+            await apiService.updatePlayerInGame(
               game.id,
               gamePlayer.player_id,
               parseFloat(gamePlayer.buyin.toString()),
               parseFloat(gamePlayer.cashout.toString())
             );
-            console.log(`${playerName} updated successfully. Backend response:`, updateResponse);
           } catch (updateErr) {
             console.error('Could not update player amounts:', updateErr);
           }
