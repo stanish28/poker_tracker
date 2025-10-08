@@ -62,6 +62,10 @@ router.get('/', async (req, res) => {
         [playerId]
       );
       console.log(`Player ${playerId} is in ${playerGames.length} games:`, playerGames.map(g => g.game_id));
+      
+      // Let's also check what players are actually in the database
+      const allPlayerIds = await allQuery('SELECT DISTINCT player_id FROM game_players LIMIT 5');
+      console.log('Sample player IDs in game_players table:', allPlayerIds.map(p => p.player_id));
     }
     
     res.json(games);
