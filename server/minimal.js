@@ -759,12 +759,22 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
     
     const newProfit = parseFloat(cashout || 0) - parseFloat(buyin || 0);
     
+    console.log('🔧 About to execute UPDATE query with params:', {
+      buyin: buyin.toString(),
+      cashout: cashout.toString(),
+      profit: newProfit.toString(),
+      gameId,
+      playerId
+    });
+    
     // Update game player amounts
-    await queryDatabase(`
+    const updateResult = await queryDatabase(`
       UPDATE game_players 
       SET buyin = $1, cashout = $2, profit = $3, updated_at = NOW()
       WHERE game_id = $4 AND player_id = $5
     `, [buyin.toString(), cashout.toString(), newProfit.toString(), gameId, playerId]);
+    
+    console.log('🔧 UPDATE query result:', updateResult);
     
     // Update game totals
     const gameStats = await queryDatabase(`
@@ -810,10 +820,43 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
       timestamp: new Date().toISOString()
     });
     
-    res.json({ message: 'Player amounts updated successfully' });
+    // Add debug headers to verify backend processing
+    res.setHeader('X-Update-Timestamp', new Date().toISOString());
+    res.setHeader('X-New-Buyin', buyin.toString());
+    res.setHeader('X-New-Cashout', cashout.toString());
+    res.json({ 
+      message: 'Player amounts updated successfully',
+      debug: {
+        gameId,
+        playerId,
+        oldBuyin,
+        newBuyin: buyin,
+        oldCashout,
+        newCashout: cashout,
+        timestamp: new Date().toISOString()
+      }
+    });
   } catch (error) {
     console.error('Error updating player amounts:', error);
     res.status(500).json({ error: 'Failed to update player amounts' });
+  }
+});
+
+// Debug endpoint to check raw database values
+app.get('/api/debug/games/:gameId/players/:playerId', async (req, res) => {
+  try {
+    const { gameId, playerId } = req.params;
+    const result = await queryDatabase(
+      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, playerId]
+    );
+    res.json({
+      found: result && result.length > 0,
+      data: result && result.length > 0 ? result[0] : null,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

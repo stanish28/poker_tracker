@@ -192,13 +192,13 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
               buyin: parseFloat(gamePlayer.buyin.toString()),
               cashout: parseFloat(gamePlayer.cashout.toString())
             });
-            await apiService.updatePlayerInGame(
+            const updateResponse = await apiService.updatePlayerInGame(
               game.id,
               gamePlayer.player_id,
               parseFloat(gamePlayer.buyin.toString()),
               parseFloat(gamePlayer.cashout.toString())
             );
-            console.log('Player updated successfully');
+            console.log('Player updated successfully. Backend response:', updateResponse);
           } catch (updateErr) {
             console.error('Could not update player amounts:', updateErr);
           }
