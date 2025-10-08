@@ -304,7 +304,7 @@ router.get('/net-profit/bulk', async (req, res) => {
     `);
 
     // Group settlements by player
-    const playerSettlements: Record<string, any[]> = {};
+    const playerSettlements = {};
     for (const settlement of settlements) {
       if (!playerSettlements[settlement.from_player_id]) {
         playerSettlements[settlement.from_player_id] = [];

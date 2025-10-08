@@ -13,6 +13,7 @@ router.use(authenticateToken);
 router.get('/', async (req, res) => {
   try {
     const { playerId } = req.query;
+    console.log('Games endpoint called with playerId:', playerId);
     
     let query;
     let params = [];
@@ -35,6 +36,7 @@ router.get('/', async (req, res) => {
         ORDER BY g.date DESC, g.created_at DESC
       `;
       params = [playerId];
+      console.log('Using filtered query for playerId:', playerId);
     } else {
       // Get all games
       query = `
@@ -47,9 +49,11 @@ router.get('/', async (req, res) => {
         GROUP BY g.id
         ORDER BY g.date DESC, g.created_at DESC
       `;
+      console.log('Using all games query');
     }
     
     const games = await allQuery(query, params);
+    console.log(`Returning ${games.length} games for playerId:`, playerId);
     res.json(games);
   } catch (error) {
     console.error('Error fetching games:', error);

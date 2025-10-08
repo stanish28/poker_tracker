@@ -18,11 +18,36 @@ async function getDbPool() {
         ssl: { rejectUnauthorized: false }
       });
       console.log('✅ Database pool created');
+      
+      // Initialize database tables if they don't exist
+      await initializeDatabase();
     } catch (error) {
       console.error('❌ Failed to create database pool:', error);
     }
   }
   return dbPool;
+}
+
+async function initializeDatabase() {
+  try {
+    console.log('🔄 Initializing database tables...');
+    
+    // Create users table if it doesn't exist
+    await queryDatabase(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    console.log('✅ Database tables initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize database:', error);
+  }
 }
 
 async function queryDatabase(sql, params = []) {
@@ -174,20 +199,138 @@ app.get('/api/games-debug', async (req, res) => {
   }
 });
 
-// Simple auth endpoint
-app.post('/api/auth/login', (req, res) => {
-  res.json({ 
-    token: 'test-token',
-    user: { id: '1', username: 'test' }
-  });
+// Authentication endpoints
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Username, email, and password are required' });
+    }
+    
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    
+    // Check if user already exists
+    const existingUser = await queryDatabase(
+      'SELECT id FROM users WHERE username = $1 OR email = $2',
+      [username, email]
+    );
+    
+    if (existingUser && existingUser.length > 0) {
+      return res.status(400).json({ error: 'Username or email already exists' });
+    }
+    
+    // Hash password (simple implementation for minimal server)
+    const bcrypt = require('bcryptjs');
+    const passwordHash = await bcrypt.hash(password, 12);
+    
+    // Create user
+    const userId = require('crypto').randomUUID();
+    await queryDatabase(
+      'INSERT INTO users (id, username, email, password_hash, created_at) VALUES ($1, $2, $3, $4, NOW())',
+      [userId, username, email, passwordHash]
+    );
+    
+    // Generate JWT token
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { userId },
+      process.env.JWT_SECRET || 'fallback_secret_for_minimal_server',
+      { expiresIn: '7d' }
+    );
+    
+    res.status(201).json({
+      message: 'User created successfully',
+      token,
+      user: { id: userId, username, email }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
 });
 
-// Simple verify endpoint
-app.get('/api/auth/verify', (req, res) => {
-  res.json({ 
-    valid: true,
-    user: { id: '1', username: 'test' }
-  });
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+    
+    // Find user by username or email
+    const user = await queryDatabase(
+      'SELECT id, username, email, password_hash FROM users WHERE username = $1 OR email = $1',
+      [username]
+    );
+    
+    if (!user || user.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Verify password
+    const bcrypt = require('bcryptjs');
+    const isValidPassword = await bcrypt.compare(password, user[0].password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    // Generate JWT token
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign(
+      { userId: user[0].id },
+      process.env.JWT_SECRET || 'fallback_secret_for_minimal_server',
+      { expiresIn: '7d' }
+    );
+    
+    res.json({
+      message: 'Login successful',
+      token,
+      user: { id: user[0].id, username: user[0].username, email: user[0].email }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+app.get('/api/auth/verify', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+    
+    const token = authHeader.substring(7);
+    
+    // Verify JWT token
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_for_minimal_server');
+    
+    // Get user details
+    const user = await queryDatabase(
+      'SELECT id, username, email FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+    
+    if (!user || user.length === 0) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    
+    res.json({
+      valid: true,
+      user: { id: user[0].id, username: user[0].username, email: user[0].email }
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(401).json({ error: 'Invalid token' });
+  }
 });
 
 // Update player endpoint
@@ -970,7 +1113,6 @@ app.get('/api/discrepancy/total', async (req, res) => {
 // Settlements endpoints (real data with fallback)
 app.get('/api/settlements', async (req, res) => {
   try {
-    console.log('💰 Settlements endpoint called');
     // Try to get real data from database
     const settlements = await queryDatabase(`
       SELECT 
@@ -980,14 +1122,8 @@ app.get('/api/settlements', async (req, res) => {
     `);
     
     if (settlements) {
-      console.log('💰 Found', settlements.length, 'settlements in database');
-      // Debug: Log the first settlement's date format
-      if (settlements.length > 0) {
-        console.log('💰 First settlement date:', settlements[0].date, 'Type:', typeof settlements[0].date);
-      }
       res.json(settlements);
     } else {
-      console.log('💰 No settlements found, using empty array');
       res.json([]);
     }
   } catch (error) {
@@ -999,7 +1135,6 @@ app.get('/api/settlements', async (req, res) => {
 app.get('/api/settlements/:id', async (req, res) => {
   try {
     const settlementId = req.params.id;
-    console.log('💰 Individual settlement endpoint called for settlement:', settlementId);
     
     const settlement = await queryDatabase(`
       SELECT 
@@ -1009,10 +1144,8 @@ app.get('/api/settlements/:id', async (req, res) => {
     `, [settlementId]);
     
     if (settlement && settlement.length > 0) {
-      console.log('💰 Found settlement in database');
       res.json(settlement[0]);
     } else {
-      console.log('💰 Settlement not found');
       res.status(404).json({ error: 'Settlement not found' });
     }
   } catch (error) {
@@ -1024,9 +1157,6 @@ app.get('/api/settlements/:id', async (req, res) => {
 app.post('/api/settlements', async (req, res) => {
   try {
     const { from_player_id, to_player_id, amount, date, notes } = req.body;
-    console.log('💰 Create settlement endpoint called');
-    console.log('💰 Request body:', JSON.stringify(req.body, null, 2));
-    console.log('💰 Date received:', date, 'Type:', typeof date);
     
     if (!from_player_id || !to_player_id || !amount || !date) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -1056,8 +1186,6 @@ app.post('/api/settlements', async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
     `, [settlementId, from_player_id, to_player_id, fromPlayer.name, toPlayer.name, amount, date, notes || null]);
     
-    console.log('💰 Settlement created with ID:', settlementId);
-    
     // Return the created settlement
     const createdSettlement = await queryDatabase(`
       SELECT 
@@ -1067,7 +1195,6 @@ app.post('/api/settlements', async (req, res) => {
     `, [settlementId]);
     
     if (createdSettlement && createdSettlement.length > 0) {
-      console.log('💰 Created settlement date:', createdSettlement[0].date, 'Type:', typeof createdSettlement[0].date);
       res.status(201).json(createdSettlement[0]);
     } else {
       res.status(201).json({ id: settlementId, message: 'Settlement created successfully' });

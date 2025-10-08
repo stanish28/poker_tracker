@@ -133,7 +133,10 @@ class ApiService {
   // Game endpoints
   async getGames(playerId?: string): Promise<Game[]> {
     const params = playerId ? `?playerId=${playerId}` : '';
-    return this.request<Game[]>(`/games${params}`);
+    console.log('API: getGames called with playerId:', playerId, 'URL:', `/games${params}`);
+    const result = await this.request<Game[]>(`/games${params}`);
+    console.log('API: getGames returned', result.length, 'games');
+    return result;
   }
 
   async getGame(id: string): Promise<GameWithPlayers> {
