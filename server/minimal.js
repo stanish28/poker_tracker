@@ -759,20 +759,36 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
     
     const newProfit = parseFloat(cashout || 0) - parseFloat(buyin || 0);
     
+    // First, let's verify the record exists
+    const existingRecord = await queryDatabase(`
+      SELECT * FROM game_players 
+      WHERE game_id = $1 AND player_id = $2
+    `, [gameId, playerId]);
+    
+    console.log('🔧 Existing record check:', {
+      found: existingRecord && existingRecord.length > 0,
+      gameId: gameId,
+      playerId: playerId,
+      gameIdType: typeof gameId,
+      playerIdType: typeof playerId,
+      currentBuyin: existingRecord && existingRecord.length > 0 ? existingRecord[0].buyin : 'NOT FOUND',
+      currentCashout: existingRecord && existingRecord.length > 0 ? existingRecord[0].cashout : 'NOT FOUND'
+    });
+    
     console.log('🔧 About to execute UPDATE query with params:', {
-      buyin: buyin.toString(),
-      cashout: cashout.toString(),
-      profit: newProfit.toString(),
+      buyin: parseFloat(buyin),
+      cashout: parseFloat(cashout),
+      profit: newProfit,
       gameId,
       playerId
     });
     
-    // Update game player amounts - use numbers not strings
+    // Update game player amounts - use CAST to ensure type compatibility
     const updateResult = await queryDatabase(`
       UPDATE game_players 
-      SET buyin = $1, cashout = $2, profit = $3, updated_at = NOW()
+      SET buyin = CAST($1 AS DECIMAL), cashout = CAST($2 AS DECIMAL), profit = CAST($3 AS DECIMAL), updated_at = NOW()
       WHERE game_id = $4 AND player_id = $5
-    `, [parseFloat(buyin), parseFloat(cashout), newProfit, gameId, playerId]);
+    `, [buyin, cashout, newProfit, gameId, playerId]);
     
     console.log('🔧 UPDATE query result:', updateResult);
     console.log('🔧 Rows affected:', updateResult?.rowCount);
