@@ -824,35 +824,85 @@ app.get('/api/games/:id', async (req, res) => {
 // Games endpoints (real data with fallback)
 app.get('/api/games', async (req, res) => {
   try {
-    console.log('🎮 Games endpoint called');
-    // Try to get real data from database with player count
-    const games = await queryDatabase(`
-      SELECT 
-        g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, g.is_completed, g.created_at, g.updated_at,
-        COALESCE(COUNT(gp.player_id), 0) as player_count
-      FROM games g
-      LEFT JOIN game_players gp ON g.id = gp.game_id
-      GROUP BY g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, g.is_completed, g.created_at, g.updated_at
-      ORDER BY g.date DESC
-    `);
+    console.log('🎯 BACKEND DEBUG: Games endpoint function called!');
+    console.log('  Request URL:', req.url);
+    console.log('  Request method:', req.method);
+    console.log('  Timestamp:', new Date().toISOString());
     
-    if (games && games.length > 0) {
-      console.log('🎮 Found', games.length, 'games in database');
-      res.json(games);
+    const { playerId } = req.query;
+    console.log('Games endpoint called with playerId:', playerId);
+    console.log('Full query object:', req.query);
+    console.log('Backend version: 1.2.3 - Updated at:', new Date().toISOString());
+    
+    let query;
+    let params = [];
+    
+    if (playerId) {
+      console.log('Using filtered query for playerId:', playerId);
+      // Filter games by player ID - using INNER JOIN approach
+      query = `
+        SELECT DISTINCT
+          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
+          g.is_completed, g.created_at, g.updated_at,
+          (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
+        FROM games g
+        INNER JOIN game_players gp ON g.id = gp.game_id
+        WHERE gp.player_id = $1
+        ORDER BY g.date DESC, g.created_at DESC
+      `;
+      params = [playerId];
     } else {
-      console.log('🎮 No games found, using mock data');
-      // Fallback to mock data
-      res.json([
-        {
-          id: '1',
-          date: new Date().toISOString(),
-          total_buyins: '800.00',
-          total_cashouts: '800.00',
-          discrepancy: '0',
-          is_completed: true,
-          player_count: 4
+      console.log('Using all games query');
+      // Get all games
+      query = `
+        SELECT 
+          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
+          g.is_completed, g.created_at, g.updated_at,
+          (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
+        FROM games g
+        ORDER BY g.date DESC, g.created_at DESC
+      `;
+    }
+    
+    console.log('Executing query:', query);
+    console.log('With params:', params);
+    const games = await queryDatabase(query, params);
+    console.log(`Returning ${games.length} games for playerId:`, playerId);
+    
+    // DEBUG: About to return data to frontend
+    console.log('🚀 BACKEND DEBUG: About to return data to frontend');
+    console.log('  playerId:', playerId);
+    console.log('  games.length:', games.length);
+    console.log('  timestamp:', new Date().toISOString());
+    
+    // Temporary debug response - include debug info in the response
+    if (playerId) {
+      const playerGames = await queryDatabase(
+        'SELECT DISTINCT game_id FROM game_players WHERE player_id = $1',
+        [playerId]
+      );
+      console.log('🚀 BACKEND DEBUG: Returning filtered games for playerId:', playerId);
+      console.log('  playerGames.length:', playerGames.length);
+      console.log('  filteredGames.length:', games.length);
+      
+      res.json({
+        games: games,
+        debug: {
+          playerId: playerId,
+          playerGamesCount: playerGames.length,
+          filteredGamesCount: games.length,
+          isFiltered: true,
+          timestamp: new Date().toISOString()
         }
-      ]);
+      });
+    } else {
+      console.log('🚀 BACKEND DEBUG: Returning all games (no filter)');
+      // Add version info to all responses
+      res.json({
+        games: games,
+        version: '1.2.3',
+        timestamp: new Date().toISOString()
+      });
     }
   } catch (error) {
     console.error('🎮 Error fetching games:', error);
