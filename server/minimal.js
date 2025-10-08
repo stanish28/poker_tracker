@@ -851,8 +851,10 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         oldCashout,
         newCashout: cashout,
         rowsAffected: updateResult?.rowCount || 0,
+        recordFound: existingRecord && existingRecord.length > 0,
+        currentDbBuyin: existingRecord && existingRecord.length > 0 ? existingRecord[0].buyin : 'NOT FOUND',
         timestamp: new Date().toISOString(),
-        version: 'v2.0-numbers-not-strings'
+        version: 'v2.1-with-cast'
       }
     });
   } catch (error) {
