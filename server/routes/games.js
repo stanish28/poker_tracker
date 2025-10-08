@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
     console.log('Games endpoint called with playerId:', playerId);
     console.log('Full query object:', req.query);
     console.log('Request URL:', req.url);
+    console.log('Backend version: 1.2.3 - Updated at:', new Date().toISOString());
     
     let query;
     let params = [];
@@ -93,7 +94,12 @@ router.get('/', async (req, res) => {
         }
       });
     } else {
-      res.json(games);
+      // Add version info to all responses
+      res.json({
+        games: games,
+        version: '1.2.3',
+        timestamp: new Date().toISOString()
+      });
     }
   } catch (error) {
     console.error('Error fetching games:', error);

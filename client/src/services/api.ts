@@ -150,7 +150,7 @@ class ApiService {
     console.log('API: getGames called with playerId:', playerId, 'URL:', `/games${params}`);
     const result = await this.request<any>(`/games${params}`);
     
-    // Handle debug response
+    // Handle new response format
     if (result.debug) {
       console.log('🔍 Backend Debug Info (from response):');
       console.log('  Player ID:', result.debug.playerId);
@@ -158,6 +158,12 @@ class ApiService {
       console.log('  Filtered Games Count:', result.debug.filteredGamesCount);
       console.log('  Is Filtered:', result.debug.isFiltered);
       console.log('  Timestamp:', result.debug.timestamp);
+      console.log('API: getGames returned', result.games.length, 'games');
+      return result.games;
+    } else if (result.games && result.version) {
+      console.log('🔍 Backend Version Info:');
+      console.log('  Version:', result.version);
+      console.log('  Timestamp:', result.timestamp);
       console.log('API: getGames returned', result.games.length, 'games');
       return result.games;
     } else {
