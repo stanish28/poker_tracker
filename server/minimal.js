@@ -767,14 +767,15 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
       playerId
     });
     
-    // Update game player amounts
+    // Update game player amounts - use numbers not strings
     const updateResult = await queryDatabase(`
       UPDATE game_players 
       SET buyin = $1, cashout = $2, profit = $3, updated_at = NOW()
       WHERE game_id = $4 AND player_id = $5
-    `, [buyin.toString(), cashout.toString(), newProfit.toString(), gameId, playerId]);
+    `, [parseFloat(buyin), parseFloat(cashout), newProfit, gameId, playerId]);
     
     console.log('🔧 UPDATE query result:', updateResult);
+    console.log('🔧 Rows affected:', updateResult?.rowCount);
     
     // Update game totals
     const gameStats = await queryDatabase(`
@@ -794,7 +795,7 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         UPDATE games 
         SET total_buyins = $1, total_cashouts = $2, discrepancy = $3, updated_at = NOW()
         WHERE id = $4
-      `, [totalBuyins, totalCashouts, discrepancy.toString(), gameId]);
+      `, [totalBuyins, totalCashouts, discrepancy, gameId]);
     }
 
     // Update player statistics with the difference
@@ -810,7 +811,7 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         total_cashouts = total_cashouts + $3,
         updated_at = NOW()
       WHERE id = $4
-    `, [profitDifference.toString(), buyinDifference.toString(), cashoutDifference.toString(), playerId]);
+    `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
     
     console.log('🔧 Update complete:', {
       profitDifference,
