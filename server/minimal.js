@@ -58,12 +58,23 @@ async function queryDatabase(sql, params = []) {
     const client = await pool.connect();
     try {
       const result = await client.query(sql, params);
-      // For INSERT/UPDATE/DELETE queries, return the result object
+      const sqlLower = sql.trim().toLowerCase();
+      
+      // For UPDATE/INSERT/DELETE with RETURNING, return rows but preserve rowCount
+      if (sqlLower.includes('returning') && (sqlLower.startsWith('update') || sqlLower.startsWith('insert') || sqlLower.startsWith('delete'))) {
+        return {
+          rows: result.rows,
+          rowCount: result.rowCount,
+          ...result
+        };
+      }
       // For SELECT queries, return the rows
-      if (sql.trim().toLowerCase().startsWith('select')) {
+      else if (sqlLower.startsWith('select')) {
         return result.rows;
-      } else {
-        return result; // Return full result for INSERT/UPDATE/DELETE
+      } 
+      // For INSERT/UPDATE/DELETE queries without RETURNING, return the result object
+      else {
+        return result;
       }
     } finally {
       client.release();
@@ -783,17 +794,32 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
       playerId
     });
     
-    // Try UPDATE with explicit RETURNING clause to see if it's a transaction issue
-    const updateResult = await queryDatabase(`
+    // Try UPDATE with table name qualification and explicit WHERE
+    const updateQuery = `
       UPDATE game_players 
       SET 
-        buyin = $1::numeric,
-        cashout = $2::numeric,
-        profit = $3::numeric,
-        updated_at = NOW()
-      WHERE game_id = $4::uuid AND player_id = $5::uuid
-      RETURNING *
-    `, [buyin, cashout, newProfit, gameId, playerId]);
+        buyin = $1,
+        cashout = $2,
+        profit = $3,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE game_players.game_id = $4 
+        AND game_players.player_id = $5
+      RETURNING buyin, cashout, profit, game_id, player_id
+    `;
+    const updateParams = [
+      parseFloat(buyin), 
+      parseFloat(cashout), 
+      parseFloat(newProfit), 
+      gameId, 
+      playerId
+    ];
+    
+    console.log('🔧 Final UPDATE attempt:', {
+      query: updateQuery,
+      params: updateParams
+    });
+    
+    const updateResult = await queryDatabase(updateQuery, updateParams);
     
     console.log('🔧 UPDATE query result:', updateResult);
     console.log('🔧 Rows affected:', updateResult?.rowCount);
@@ -855,12 +881,12 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         newBuyin: buyin,
         oldCashout,
         newCashout: cashout,
-        rowsAffected: updateResult?.rowCount || (updateResult?.length || 0),
+        rowsAffected: updateResult?.rowCount || 0,
         recordFound: existingRecord && existingRecord.length > 0,
         currentDbBuyin: existingRecord && existingRecord.length > 0 ? existingRecord[0].buyin : 'NOT FOUND',
-        returningData: updateResult && updateResult.length > 0 ? updateResult[0] : null,
+        returningData: updateResult?.rows && updateResult.rows.length > 0 ? updateResult.rows[0] : null,
         timestamp: new Date().toISOString(),
-        version: 'v2.2-with-returning'
+        version: 'v2.3-fixed-returning-handler'
       }
     });
   } catch (error) {
