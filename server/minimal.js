@@ -83,6 +83,16 @@ async function queryDatabase(sql, params = []) {
     console.error('❌ Database query failed:', error);
     console.error('❌ SQL:', sql);
     console.error('❌ Params:', params);
+    // Return error info for UPDATE/INSERT/DELETE queries
+    if (sql.trim().toLowerCase().match(/^(update|insert|delete)/)) {
+      return {
+        error: true,
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        rowCount: 0
+      };
+    }
     return null;
   }
 }
@@ -819,10 +829,20 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
       params: updateParams
     });
     
-    const updateResult = await queryDatabase(updateQuery, updateParams);
-    
-    console.log('🔧 UPDATE query result:', updateResult);
-    console.log('🔧 Rows affected:', updateResult?.rowCount);
+    let updateResult;
+    let updateError = null;
+    try {
+      updateResult = await queryDatabase(updateQuery, updateParams);
+      console.log('🔧 UPDATE query result:', updateResult);
+      console.log('🔧 Rows affected:', updateResult?.rowCount);
+    } catch (err) {
+      updateError = {
+        message: err.message,
+        code: err.code,
+        detail: err.detail
+      };
+      console.error('🔧 UPDATE query error:', updateError);
+    }
     
     // Update game totals
     const gameStats = await queryDatabase(`
@@ -888,8 +908,13 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         updateResultType: typeof updateResult,
         updateResultKeys: updateResult ? Object.keys(updateResult) : [],
         rawUpdateResult: updateResult,
+        updateError: updateError,
         timestamp: new Date().toISOString(),
-        version: 'v2.4-debug-update-result'
+        hasError: updateResult?.error || false,
+        errorMessage: updateResult?.message || null,
+        errorCode: updateResult?.code || null,
+        errorDetail: updateResult?.detail || null,
+        version: 'v2.6-return-query-error'
       }
     });
   } catch (error) {
