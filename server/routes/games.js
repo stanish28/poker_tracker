@@ -14,6 +14,8 @@ router.get('/', async (req, res) => {
   try {
     const { playerId } = req.query;
     console.log('Games endpoint called with playerId:', playerId);
+    console.log('Full query object:', req.query);
+    console.log('Request URL:', req.url);
     
     let query;
     let params = [];
@@ -62,9 +64,16 @@ router.get('/', async (req, res) => {
       
       // Set debugging info in response headers
       res.setHeader('X-Debug-PlayerId', playerId);
-      res.setHeader('X-Debug-PlayerGames', playerGames.length);
-      res.setHeader('X-Debug-FilteredGames', games.length);
+      res.setHeader('X-Debug-PlayerGames', playerGames.length.toString());
+      res.setHeader('X-Debug-FilteredGames', games.length.toString());
       res.setHeader('X-Debug-Query', query.substring(0, 100) + '...');
+      res.setHeader('X-Debug-IsFiltered', 'true');
+      
+      console.log('Setting debug headers:', {
+        playerId,
+        playerGames: playerGames.length,
+        filteredGames: games.length
+      });
     }
     
     res.json(games);
