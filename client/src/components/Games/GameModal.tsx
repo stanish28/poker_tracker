@@ -33,8 +33,15 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
       if (game) {
         try {
           setIsLoading(true);
+          console.log('📝 Loading game data for game:', game.id);
           // Fetch the full game details with players
           const gameDetails = await apiService.getGame(game.id);
+          console.log('📝 Received game details:', gameDetails);
+          console.log('📝 Players:', gameDetails.players.map(p => ({
+            name: p.player_name,
+            buyin: p.buyin,
+            cashout: p.cashout
+          })));
           setFormData({
             date: game.date,
             players: gameDetails.players.map(p => ({

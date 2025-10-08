@@ -22,7 +22,9 @@ const Games: React.FC = () => {
   const fetchGames = useCallback(async () => {
     try {
       setError(null);
+      console.log('📥 Fetching games...');
       const gamesData = await apiService.getGames(selectedPlayerId || undefined);
+      console.log('📥 Received', gamesData.length, 'games');
       setGames(gamesData);
     } catch (err) {
       setError('Failed to load games');
@@ -131,7 +133,9 @@ const Games: React.FC = () => {
 
   const handleGameSaved = async (savedGame: Game) => {
     // Always refetch games to ensure we have the latest data
+    console.log('🔄 Refetching games after save...');
     await fetchGames();
+    console.log('🔄 Games refetched, closing modal');
     handleModalClose();
   };
 
