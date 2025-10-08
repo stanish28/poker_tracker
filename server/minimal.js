@@ -732,13 +732,24 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
     const playerId = req.params.playerId;
     const { buyin, cashout } = req.body;
     
+    console.log('🔧 UPDATE PLAYER endpoint called:', {
+      gameId,
+      playerId,
+      buyin,
+      cashout,
+      timestamp: new Date().toISOString()
+    });
+    
     // Get OLD values BEFORE updating
     const oldGamePlayer = await queryDatabase(
       'SELECT buyin, cashout, profit FROM game_players WHERE game_id = $1 AND player_id = $2',
       [gameId, playerId]
     );
 
+    console.log('🔧 Old player values:', oldGamePlayer);
+
     if (!oldGamePlayer || oldGamePlayer.length === 0) {
+      console.error('🔧 Player not found in game');
       return res.status(404).json({ error: 'Player not found in this game' });
     }
 
@@ -790,6 +801,14 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         updated_at = NOW()
       WHERE id = $4
     `, [profitDifference.toString(), buyinDifference.toString(), cashoutDifference.toString(), playerId]);
+    
+    console.log('🔧 Update complete:', {
+      profitDifference,
+      buyinDifference,
+      cashoutDifference,
+      newProfit,
+      timestamp: new Date().toISOString()
+    });
     
     res.json({ message: 'Player amounts updated successfully' });
   } catch (error) {

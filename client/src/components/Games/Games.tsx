@@ -129,12 +129,9 @@ const Games: React.FC = () => {
     setSelectedGame(null);
   };
 
-  const handleGameSaved = (savedGame: Game) => {
-    if (editingGame) {
-      setGames(prev => prev.map(g => g.id === savedGame.id ? savedGame : g));
-    } else {
-      setGames(prev => [savedGame, ...prev]);
-    }
+  const handleGameSaved = async (savedGame: Game) => {
+    // Always refetch games to ensure we have the latest data
+    await fetchGames();
     handleModalClose();
   };
 

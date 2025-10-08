@@ -179,14 +179,21 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         // Update existing players' amounts
         for (const gamePlayer of playersToUpdate) {
           try {
+            console.log('Updating player:', {
+              gameId: game.id,
+              playerId: gamePlayer.player_id,
+              buyin: parseFloat(gamePlayer.buyin.toString()),
+              cashout: parseFloat(gamePlayer.cashout.toString())
+            });
             await apiService.updatePlayerInGame(
               game.id,
               gamePlayer.player_id,
               parseFloat(gamePlayer.buyin.toString()),
               parseFloat(gamePlayer.cashout.toString())
             );
+            console.log('Player updated successfully');
           } catch (updateErr) {
-            console.warn('Could not update player amounts:', updateErr);
+            console.error('Could not update player amounts:', updateErr);
           }
         }
         
