@@ -9,19 +9,47 @@ const router = express.Router();
 // Apply authentication to all routes
 router.use(authenticateToken);
 
-// Get all games
+// Get all games (with optional player filter)
 router.get('/', async (req, res) => {
   try {
-    const games = await allQuery(`
-      SELECT 
-        g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
-        g.is_completed, g.created_at, g.updated_at,
-        COUNT(gp.player_id) as player_count
-      FROM games g
-      LEFT JOIN game_players gp ON g.id = gp.game_id
-      GROUP BY g.id
-      ORDER BY g.date DESC, g.created_at DESC
-    `);
+    const { playerId } = req.query;
+    
+    let query;
+    let params = [];
+    
+    if (playerId) {
+      // Filter games by player ID
+      query = `
+        SELECT 
+          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
+          g.is_completed, g.created_at, g.updated_at,
+          COUNT(gp.player_id) as player_count
+        FROM games g
+        LEFT JOIN game_players gp ON g.id = gp.game_id
+        WHERE g.id IN (
+          SELECT DISTINCT game_id 
+          FROM game_players 
+          WHERE player_id = ?
+        )
+        GROUP BY g.id
+        ORDER BY g.date DESC, g.created_at DESC
+      `;
+      params = [playerId];
+    } else {
+      // Get all games
+      query = `
+        SELECT 
+          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
+          g.is_completed, g.created_at, g.updated_at,
+          COUNT(gp.player_id) as player_count
+        FROM games g
+        LEFT JOIN game_players gp ON g.id = gp.game_id
+        GROUP BY g.id
+        ORDER BY g.date DESC, g.created_at DESC
+      `;
+    }
+    
+    const games = await allQuery(query, params);
     res.json(games);
   } catch (error) {
     console.error('Error fetching games:', error);

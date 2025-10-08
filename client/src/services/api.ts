@@ -13,7 +13,7 @@ import {
   PlayerDebts
 } from '../types';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5001/api' : '/api');
 
 class ApiError extends Error {
   constructor(public status: number, message: string, public details?: any) {
@@ -131,8 +131,9 @@ class ApiService {
   }
 
   // Game endpoints
-  async getGames(): Promise<Game[]> {
-    return this.request<Game[]>('/games');
+  async getGames(playerId?: string): Promise<Game[]> {
+    const params = playerId ? `?playerId=${playerId}` : '';
+    return this.request<Game[]>(`/games${params}`);
   }
 
   async getGame(id: string): Promise<GameWithPlayers> {

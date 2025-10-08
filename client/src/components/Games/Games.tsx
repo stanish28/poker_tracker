@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle, FileText } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle, FileText, Search, X } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
@@ -17,12 +17,20 @@ const Games: React.FC = () => {
   const [isTextImportModalOpen, setIsTextImportModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const fetchGames = useCallback(async () => {
+    try {
+      setError(null);
+      const gamesData = await apiService.getGames(selectedPlayerId || undefined);
+      setGames(gamesData);
+    } catch (err) {
+      setError('Failed to load games');
+      console.error('Games error:', err);
+    }
+  }, [selectedPlayerId]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -38,6 +46,26 @@ const Games: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (players.length > 0) {
+      fetchGames();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlayerId]);
+
+  const handlePlayerFilterChange = (playerId: string) => {
+    setSelectedPlayerId(playerId);
+  };
+
+  const handleClearFilter = () => {
+    setSelectedPlayerId('');
   };
 
   const handleCreateGame = () => {
@@ -162,6 +190,49 @@ const Games: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Player Filter */}
+      {players.length > 0 && (
+        <div className="card p-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2 text-gray-700">
+              <Search className="h-5 w-5 text-gray-400" />
+              <label htmlFor="player-filter" className="text-sm font-medium">
+                Filter by Player:
+              </label>
+            </div>
+            <div className="flex-1 flex items-center gap-2 w-full sm:w-auto">
+              <select
+                id="player-filter"
+                value={selectedPlayerId}
+                onChange={(e) => handlePlayerFilterChange(e.target.value)}
+                className="flex-1 sm:w-64 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="">All Players</option>
+                {players.map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.name}
+                  </option>
+                ))}
+              </select>
+              {selectedPlayerId && (
+                <button
+                  onClick={handleClearFilter}
+                  className="btn btn-secondary btn-sm"
+                  title="Clear filter"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {selectedPlayerId && (
+              <div className="text-sm text-gray-600">
+                Showing {games.length} game{games.length !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
