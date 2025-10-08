@@ -19,18 +19,15 @@ router.get('/', async (req, res) => {
     let params = [];
     
     if (playerId) {
-      // Filter games by player ID - simplified query
+      // Filter games by player ID - even simpler approach
       query = `
-        SELECT 
+        SELECT DISTINCT
           g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
           g.is_completed, g.created_at, g.updated_at,
           (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
         FROM games g
-        WHERE g.id IN (
-          SELECT DISTINCT game_id 
-          FROM game_players 
-          WHERE player_id = ?
-        )
+        INNER JOIN game_players gp ON g.id = gp.game_id
+        WHERE gp.player_id = ?
         ORDER BY g.date DESC, g.created_at DESC
       `;
       params = [playerId];
@@ -466,18 +463,15 @@ router.get('/test-filter/:playerId', async (req, res) => {
     );
     console.log('Player games found:', playerGames);
     
-    // Test the full query
+    // Test the full query with INNER JOIN
     const filteredGames = await allQuery(`
-      SELECT 
+      SELECT DISTINCT
         g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
         g.is_completed, g.created_at, g.updated_at,
         (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
       FROM games g
-      WHERE g.id IN (
-        SELECT DISTINCT game_id 
-        FROM game_players 
-        WHERE player_id = ?
-      )
+      INNER JOIN game_players gp ON g.id = gp.game_id
+      WHERE gp.player_id = ?
       ORDER BY g.date DESC, g.created_at DESC
     `, [playerId]);
     
