@@ -375,13 +375,13 @@ router.put('/:gameId/players/:playerId', [
     const { buyin, cashout } = req.body;
     const profit = cashout - buyin;
 
-    // Check if game-player record exists
-    const existingGamePlayer = await getQuery(
-      'SELECT id FROM game_players WHERE game_id = ? AND player_id = ?',
+    // Check if game-player record exists and get OLD values BEFORE updating
+    const oldGamePlayer = await getQuery(
+      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = ? AND player_id = ?',
       [gameId, playerId]
     );
 
-    if (!existingGamePlayer) {
+    if (!oldGamePlayer) {
       return res.status(404).json({ error: 'Player not found in this game' });
     }
 
@@ -409,39 +409,24 @@ router.put('/:gameId/players/:playerId', [
       WHERE id = ?
     `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
 
-    // Get old values BEFORE updating
-    const oldGamePlayer = await getQuery(
-      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = ? AND player_id = ?',
-      [gameId, playerId]
-    );
+    // Update player statistics with the difference
+    const oldProfit = parseFloat(oldGamePlayer.profit || 0);
+    const oldBuyin = parseFloat(oldGamePlayer.buyin || 0);
+    const oldCashout = parseFloat(oldGamePlayer.cashout || 0);
+    
+    const profitDifference = profit - oldProfit;
+    const buyinDifference = buyin - oldBuyin;
+    const cashoutDifference = cashout - oldCashout;
 
-    // Update game player amounts
     await runQuery(`
-      UPDATE game_players 
-      SET buyin = ?, cashout = ?, profit = ?
-      WHERE game_id = ? AND player_id = ?
-    `, [buyin, cashout, profit, gameId, playerId]);
-
-    // Update player statistics if we had old values
-    if (oldGamePlayer) {
-      const oldProfit = parseFloat(oldGamePlayer.profit || 0);
-      const oldBuyin = parseFloat(oldGamePlayer.buyin || 0);
-      const oldCashout = parseFloat(oldGamePlayer.cashout || 0);
-      
-      const profitDifference = profit - oldProfit;
-      const buyinDifference = buyin - oldBuyin;
-      const cashoutDifference = cashout - oldCashout;
-
-      await runQuery(`
-        UPDATE players 
-        SET 
-          net_profit = net_profit + ?,
-          total_buyins = total_buyins + ?,
-          total_cashouts = total_cashouts + ?,
-          updated_at = NOW()
-        WHERE id = ?
-      `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
-    }
+      UPDATE players 
+      SET 
+        net_profit = net_profit + ?,
+        total_buyins = total_buyins + ?,
+        total_cashouts = total_cashouts + ?,
+        updated_at = NOW()
+      WHERE id = ?
+    `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
 
     res.json({ message: 'Player amounts updated successfully' });
   } catch (error) {
