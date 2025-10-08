@@ -731,16 +731,29 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
     const gameId = req.params.gameId;
     const playerId = req.params.playerId;
     const { buyin, cashout } = req.body;
-    console.log('🎮 Update player amounts endpoint called for game:', gameId, 'player:', playerId);
     
-    const profit = parseFloat(cashout || 0) - parseFloat(buyin || 0);
+    // Get OLD values BEFORE updating
+    const oldGamePlayer = await queryDatabase(
+      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, playerId]
+    );
+
+    if (!oldGamePlayer || oldGamePlayer.length === 0) {
+      return res.status(404).json({ error: 'Player not found in this game' });
+    }
+
+    const oldProfit = parseFloat(oldGamePlayer[0].profit || 0);
+    const oldBuyin = parseFloat(oldGamePlayer[0].buyin || 0);
+    const oldCashout = parseFloat(oldGamePlayer[0].cashout || 0);
     
-    // Update player amounts
+    const newProfit = parseFloat(cashout || 0) - parseFloat(buyin || 0);
+    
+    // Update game player amounts
     await queryDatabase(`
       UPDATE game_players 
       SET buyin = $1, cashout = $2, profit = $3, updated_at = NOW()
       WHERE game_id = $4 AND player_id = $5
-    `, [buyin.toString(), cashout.toString(), profit.toString(), gameId, playerId]);
+    `, [buyin.toString(), cashout.toString(), newProfit.toString(), gameId, playerId]);
     
     // Update game totals
     const gameStats = await queryDatabase(`
@@ -762,11 +775,25 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
         WHERE id = $4
       `, [totalBuyins, totalCashouts, discrepancy.toString(), gameId]);
     }
+
+    // Update player statistics with the difference
+    const profitDifference = newProfit - oldProfit;
+    const buyinDifference = parseFloat(buyin || 0) - oldBuyin;
+    const cashoutDifference = parseFloat(cashout || 0) - oldCashout;
+
+    await queryDatabase(`
+      UPDATE players 
+      SET 
+        net_profit = net_profit + $1,
+        total_buyins = total_buyins + $2,
+        total_cashouts = total_cashouts + $3,
+        updated_at = NOW()
+      WHERE id = $4
+    `, [profitDifference.toString(), buyinDifference.toString(), cashoutDifference.toString(), playerId]);
     
-    console.log('🎮 Player amounts updated successfully');
     res.json({ message: 'Player amounts updated successfully' });
   } catch (error) {
-    console.error('🎮 Error updating player amounts:', error);
+    console.error('Error updating player amounts:', error);
     res.status(500).json({ error: 'Failed to update player amounts' });
   }
 });
@@ -824,21 +851,12 @@ app.get('/api/games/:id', async (req, res) => {
 // Games endpoints (real data with fallback)
 app.get('/api/games', async (req, res) => {
   try {
-    console.log('🎯 BACKEND DEBUG: Games endpoint function called!');
-    console.log('  Request URL:', req.url);
-    console.log('  Request method:', req.method);
-    console.log('  Timestamp:', new Date().toISOString());
-    
     const { playerId } = req.query;
-    console.log('Games endpoint called with playerId:', playerId);
-    console.log('Full query object:', req.query);
-    console.log('Backend version: 1.2.3 - Updated at:', new Date().toISOString());
     
     let query;
     let params = [];
     
     if (playerId) {
-      console.log('Using filtered query for playerId:', playerId);
       // Filter games by player ID - using INNER JOIN approach
       query = `
         SELECT DISTINCT
@@ -852,7 +870,6 @@ app.get('/api/games', async (req, res) => {
       `;
       params = [playerId];
     } else {
-      console.log('Using all games query');
       // Get all games
       query = `
         SELECT 
@@ -864,49 +881,10 @@ app.get('/api/games', async (req, res) => {
       `;
     }
     
-    console.log('Executing query:', query);
-    console.log('With params:', params);
     const games = await queryDatabase(query, params);
-    console.log(`Returning ${games.length} games for playerId:`, playerId);
-    
-    // DEBUG: About to return data to frontend
-    console.log('🚀 BACKEND DEBUG: About to return data to frontend');
-    console.log('  playerId:', playerId);
-    console.log('  games.length:', games.length);
-    console.log('  timestamp:', new Date().toISOString());
-    
-    // Temporary debug response - include debug info in the response
-    if (playerId) {
-      const playerGames = await queryDatabase(
-        'SELECT DISTINCT game_id FROM game_players WHERE player_id = $1',
-        [playerId]
-      );
-      console.log('🚀 BACKEND DEBUG: Returning filtered games for playerId:', playerId);
-      console.log('  playerGames.length:', playerGames.length);
-      console.log('  filteredGames.length:', games.length);
-      
-      res.json({
-        games: games,
-        debug: {
-          playerId: playerId,
-          playerGamesCount: playerGames.length,
-          filteredGamesCount: games.length,
-          isFiltered: true,
-          timestamp: new Date().toISOString()
-        }
-      });
-    } else {
-      console.log('🚀 BACKEND DEBUG: Returning all games (no filter)');
-      // Add version info to all responses
-      res.json({
-        games: games,
-        version: '1.2.3',
-        timestamp: new Date().toISOString()
-      });
-    }
+    res.json(games);
   } catch (error) {
-    console.error('🎮 Error fetching games:', error);
-    console.error('🎮 Error details:', error.message);
+    console.error('Error fetching games:', error);
     res.status(500).json({ error: 'Failed to fetch games' });
   }
 });

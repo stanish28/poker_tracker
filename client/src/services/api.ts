@@ -47,19 +47,6 @@ class ApiService {
     try {
       const response = await fetch(url, config);
       
-      // Log debugging headers for games endpoint
-      if (endpoint.includes('/games') && !endpoint.includes('/test-filter')) {
-        const debugPlayerId = response.headers.get('X-Debug-PlayerId');
-        const debugPlayerGames = response.headers.get('X-Debug-PlayerGames');
-        const debugFilteredGames = response.headers.get('X-Debug-FilteredGames');
-        const debugQuery = response.headers.get('X-Debug-Query');
-        
-        console.log('🔍 Backend Debug Info:');
-        console.log('  Player ID:', debugPlayerId);
-        console.log('  Player Games Count:', debugPlayerGames);
-        console.log('  Filtered Games Count:', debugFilteredGames);
-        console.log('  Query:', debugQuery);
-      }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -147,29 +134,7 @@ class ApiService {
   // Game endpoints
   async getGames(playerId?: string): Promise<Game[]> {
     const params = playerId ? `?playerId=${playerId}` : '';
-    console.log('API: getGames called with playerId:', playerId, 'URL:', `/games${params}`);
-    const result = await this.request<any>(`/games${params}`);
-    
-    // Handle new response format
-    if (result.debug) {
-      console.log('🔍 Backend Debug Info (from response):');
-      console.log('  Player ID:', result.debug.playerId);
-      console.log('  Player Games Count:', result.debug.playerGamesCount);
-      console.log('  Filtered Games Count:', result.debug.filteredGamesCount);
-      console.log('  Is Filtered:', result.debug.isFiltered);
-      console.log('  Timestamp:', result.debug.timestamp);
-      console.log('API: getGames returned', result.games.length, 'games');
-      return result.games;
-    } else if (result.games && result.version) {
-      console.log('🔍 Backend Version Info:');
-      console.log('  Version:', result.version);
-      console.log('  Timestamp:', result.timestamp);
-      console.log('API: getGames returned', result.games.length, 'games');
-      return result.games;
-    } else {
-      console.log('API: getGames returned', result.length, 'games');
-      return result;
-    }
+    return this.request<Game[]>(`/games${params}`);
   }
 
   async getGame(id: string): Promise<GameWithPlayers> {
