@@ -50,8 +50,20 @@ router.get('/', async (req, res) => {
       console.log('Using all games query');
     }
     
+    console.log('Executing query:', query);
+    console.log('With params:', params);
     const games = await allQuery(query, params);
     console.log(`Returning ${games.length} games for playerId:`, playerId);
+    
+    // Additional debugging - let's check if the player actually exists in game_players
+    if (playerId) {
+      const playerGames = await allQuery(
+        'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
+        [playerId]
+      );
+      console.log(`Player ${playerId} is in ${playerGames.length} games:`, playerGames.map(g => g.game_id));
+    }
+    
     res.json(games);
   } catch (error) {
     console.error('Error fetching games:', error);
