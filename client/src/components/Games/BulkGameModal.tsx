@@ -244,6 +244,18 @@ Akhil: -10.5"
           </p>
         </div>
 
+        {/* Create Game Button at Top */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleCreateGame}
+            className="btn btn-primary"
+            disabled={isLoading || validation.errors.length > 0}
+          >
+            Create Game
+          </button>
+        </div>
+
         {/* Validation Messages */}
         {validation.errors.length > 0 && (
           <div className="p-3 bg-danger-50 border border-danger-200 rounded-md">
@@ -440,7 +452,7 @@ Akhil: -10.5"
           </div>
         )}
 
-        <div className="flex justify-between">
+        <div className="flex justify-start">
           <button
             type="button"
             onClick={handleBack}
@@ -448,14 +460,6 @@ Akhil: -10.5"
             disabled={isLoading}
           >
             Back
-          </button>
-          <button
-            type="button"
-            onClick={handleCreateGame}
-            className="btn btn-primary"
-            disabled={isLoading || validation.errors.length > 0}
-          >
-            Create Game
           </button>
         </div>
       </div>
