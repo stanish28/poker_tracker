@@ -337,9 +337,14 @@ router.delete('/:id', async (req, res) => {
 
 // Add player to existing game
 router.post('/:gameId/players', [
-  body('player_id').notEmpty().withMessage('Player ID is required'),
-  body('buyin').isNumeric().withMessage('Buy-in must be a number'),
-  body('cashout').isNumeric().withMessage('Cash-out must be a number')
+  body('players').optional().isArray({ min: 1 }).withMessage('Players must be an array with at least one player'),
+  body('players.*.player_id').optional().notEmpty().withMessage('Player ID is required'),
+  body('players.*.buyin').optional().isNumeric().withMessage('Buy-in must be a number'),
+  body('players.*.cashout').optional().isNumeric().withMessage('Cash-out must be a number'),
+  // Support legacy single player format
+  body('player_id').optional().notEmpty().withMessage('Player ID is required'),
+  body('buyin').optional().isNumeric().withMessage('Buy-in must be a number'),
+  body('cashout').optional().isNumeric().withMessage('Cash-out must be a number')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -348,49 +353,77 @@ router.post('/:gameId/players', [
     }
 
     const { gameId } = req.params;
-    const { player_id, buyin, cashout } = req.body;
-    const profit = cashout - buyin;
-
-    // Check if game exists
+    const { players, player_id, buyin, cashout } = req.body;
+    
+    // Support both array format and single player format
+    let playersToAdd = [];
+    if (players && Array.isArray(players)) {
+      playersToAdd = players;
+    } else if (player_id) {
+      // Legacy single player format
+      playersToAdd = [{ player_id, buyin, cashout }];
+    } else {
+      return res.status(400).json({ error: 'At least one player is required' });
+    }
+    
+    // Check if game exists (once, outside the loop)
     const existingGame = await getQuery('SELECT id FROM games WHERE id = ?', [gameId]);
     if (!existingGame) {
       return res.status(404).json({ error: 'Game not found' });
     }
+    
+    const results = [];
+    
+    for (const player of playersToAdd) {
+      const { player_id: pid, buyin: bin, cashout: cout } = player;
+      const profit = parseFloat(cout) - parseFloat(bin);
 
-    // Check if player exists
-    const existingPlayer = await getQuery('SELECT id, name FROM players WHERE id = ?', [player_id]);
-    if (!existingPlayer) {
-      return res.status(404).json({ error: 'Player not found' });
+      // Check if player exists
+      const existingPlayer = await getQuery('SELECT id, name FROM players WHERE id = ?', [pid]);
+      if (!existingPlayer) {
+        results.push({ player_id: pid, error: 'Player not found' });
+        continue;
+      }
+
+      // Check if player is already in this game
+      const existingGamePlayer = await getQuery(
+        'SELECT id FROM game_players WHERE game_id = ? AND player_id = ?',
+        [gameId, pid]
+      );
+
+      if (existingGamePlayer) {
+        results.push({ player_id: pid, error: 'Player is already in this game' });
+        continue;
+      }
+
+      // Add player to game
+      const gamePlayerId = uuidv4();
+      await runQuery(`
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [gamePlayerId, gameId, pid, bin, cout, profit]);
+
+      // Update player statistics
+      await runQuery(`
+        UPDATE players 
+        SET 
+          net_profit = net_profit + ?,
+          total_games = total_games + 1,
+          total_buyins = total_buyins + ?,
+          total_cashouts = total_cashouts + ?,
+          updated_at = NOW()
+        WHERE id = ?
+      `, [profit, bin, cout, pid]);
+
+      results.push({
+        id: gamePlayerId,
+        player_id: pid,
+        player_name: existingPlayer.name,
+        buyin: bin,
+        cashout: cout,
+        profit
+      });
     }
-
-    // Check if player is already in this game
-    const existingGamePlayer = await getQuery(
-      'SELECT id FROM game_players WHERE game_id = ? AND player_id = ?',
-      [gameId, player_id]
-    );
-
-    if (existingGamePlayer) {
-      return res.status(400).json({ error: 'Player is already in this game' });
-    }
-
-    // Add player to game
-    const gamePlayerId = uuidv4();
-    await runQuery(`
-      INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, [gamePlayerId, gameId, player_id, buyin, cashout, profit]);
-
-    // Update player statistics
-    await runQuery(`
-      UPDATE players 
-      SET 
-        net_profit = net_profit + ?,
-        total_games = total_games + 1,
-        total_buyins = total_buyins + ?,
-        total_cashouts = total_cashouts + ?,
-        updated_at = NOW()
-      WHERE id = ?
-    `, [profit, buyin, cashout, player_id]);
 
     // Recalculate and update game totals
     const gameTotals = await getQuery(`
@@ -409,16 +442,19 @@ router.post('/:gameId/players', [
       WHERE id = ?
     `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
 
+    // Check if all players were added successfully
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0 && results.length === errors.length) {
+      return res.status(400).json({ 
+        error: 'Failed to add players',
+        details: errors
+      });
+    }
+
     res.json({ 
-      message: 'Player added to game successfully',
-      player: {
-        id: gamePlayerId,
-        player_id,
-        player_name: existingPlayer.name,
-        buyin,
-        cashout,
-        profit
-      }
+      message: playersToAdd.length === 1 ? 'Player added to game successfully' : 'Players added to game successfully',
+      players: results.filter(r => !r.error),
+      errors: errors.length > 0 ? errors : undefined
     });
   } catch (error) {
     console.error('Error adding player to game:', error);

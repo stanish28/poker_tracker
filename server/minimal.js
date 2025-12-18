@@ -691,15 +691,26 @@ app.get('/api/games/:gameId/players', async (req, res) => {
 app.post('/api/games/:gameId/players', async (req, res) => {
   try {
     const gameId = req.params.gameId;
-    const { players } = req.body;
-    console.log('🎮 Add players to game endpoint called for game:', gameId, 'with', players?.length || 0, 'players');
+    const { players, player_id, buyin, cashout } = req.body;
+    console.log('🎮 Add players to game endpoint called for game:', gameId);
+    console.log('🎮 Request body:', JSON.stringify(req.body));
     
-    if (!players || players.length === 0) {
+    // Support both array format and single player format
+    let playersToAdd = [];
+    if (players && Array.isArray(players) && players.length > 0) {
+      playersToAdd = players;
+    } else if (player_id) {
+      // Legacy single player format
+      playersToAdd = [{ player_id, buyin, cashout }];
+    } else {
+      console.log('🎮 Error: No players found in request body');
       return res.status(400).json({ error: 'At least one player is required' });
     }
     
+    console.log('🎮 Processing', playersToAdd.length, 'player(s)');
+    
     // Add each player to the game
-    for (const player of players) {
+    for (const player of playersToAdd) {
       const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
       
       console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);

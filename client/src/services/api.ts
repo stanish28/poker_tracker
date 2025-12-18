@@ -175,7 +175,7 @@ class ApiService {
   async addPlayerToGame(gameId: string, playerId: string, buyin: number, cashout: number): Promise<{ message: string }> {
     return this.request<{ message: string }>(`/games/${gameId}/players`, {
       method: 'POST',
-      body: JSON.stringify({ player_id: playerId, buyin, cashout }),
+      body: JSON.stringify({ players: [{ player_id: playerId, buyin, cashout }] }),
     });
   }
 

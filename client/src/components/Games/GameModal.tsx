@@ -162,6 +162,9 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         const playersToAdd = formData.players.filter(gp => !currentPlayerIds.includes(gp.player_id));
         const playersToUpdate = formData.players.filter(gp => currentPlayerIds.includes(gp.player_id));
         
+        // Track errors
+        const errors: string[] = [];
+        
         // Add new players to the game
         for (const newPlayer of playersToAdd) {
           try {
@@ -171,8 +174,11 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
               parseFloat(newPlayer.buyin.toString()),
               parseFloat(newPlayer.cashout.toString())
             );
-          } catch (addErr) {
-            console.warn('Could not add player to game:', addErr);
+          } catch (addErr: any) {
+            const playerName = getPlayerName(newPlayer.player_id);
+            const errorMsg = addErr?.message || 'Unknown error';
+            errors.push(`Failed to add ${playerName}: ${errorMsg}`);
+            console.error('Could not add player to game:', addErr);
           }
         }
         
@@ -185,14 +191,35 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
               parseFloat(gamePlayer.buyin.toString()),
               parseFloat(gamePlayer.cashout.toString())
             );
-          } catch (updateErr) {
+          } catch (updateErr: any) {
+            const playerName = getPlayerName(gamePlayer.player_id);
+            const errorMsg = updateErr?.message || 'Unknown error';
+            errors.push(`Failed to update ${playerName}: ${errorMsg}`);
             console.error('Could not update player amounts:', updateErr);
           }
         }
         
-        // Fetch updated game data
-        const savedGame = await apiService.getGame(game.id);
-        onSave(savedGame);
+        // Fetch updated game data to refresh the form
+        const updatedGameDetails = await apiService.getGame(game.id);
+        
+        // If there were errors, show them and reload the form data but keep modal open
+        if (errors.length > 0) {
+          setError(`Some updates failed: ${errors.join('; ')}`);
+          // Reload the form with updated data to show partial updates
+          setFormData({
+            date: updatedGameDetails.date,
+            players: updatedGameDetails.players.map(p => ({
+              player_id: p.player_id,
+              buyin: p.buyin,
+              cashout: p.cashout
+            }))
+          });
+          // Don't call onSave - keep modal open so user can see errors and retry
+          return;
+        }
+        
+        // All updates succeeded - save and close
+        onSave(updatedGameDetails);
       } else {
         // Create new game
         const gameData: CreateGameRequest = {
