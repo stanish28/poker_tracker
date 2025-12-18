@@ -880,6 +880,72 @@ app.post('/api/games/:gameId/players', async (req, res) => {
   }
 });
 
+// Remove player from game endpoint
+app.delete('/api/games/:gameId/players/:playerId', async (req, res) => {
+  try {
+    const gameId = req.params.gameId;
+    const playerId = req.params.playerId;
+    console.log('🎮 Remove player from game:', playerId, 'from game:', gameId);
+    
+    // Get the game_player record to reverse statistics
+    const gamePlayer = await queryDatabase(
+      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, playerId]
+    );
+
+    if (!gamePlayer || gamePlayer.length === 0) {
+      return res.status(404).json({ error: 'Player not found in this game' });
+    }
+
+    const buyin = parseFloat(gamePlayer[0].buyin || 0);
+    const cashout = parseFloat(gamePlayer[0].cashout || 0);
+    const profit = parseFloat(gamePlayer[0].profit || 0);
+    
+    // Delete the game_player record
+    await queryDatabase(
+      'DELETE FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, playerId]
+    );
+    
+    // Update player statistics (reverse the amounts)
+    await queryDatabase(`
+      UPDATE players 
+      SET 
+        net_profit = net_profit - $1,
+        total_games = total_games - 1,
+        total_buyins = total_buyins - $2,
+        total_cashouts = total_cashouts - $3,
+        updated_at = NOW()
+      WHERE id = $4
+    `, [profit, buyin, cashout, playerId]);
+    
+    // Update game totals
+    const gameStats = await queryDatabase(`
+      SELECT 
+        COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+        COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts
+      FROM game_players 
+      WHERE game_id = $1
+    `, [gameId]);
+    
+    const totalBuyins = parseFloat(gameStats?.[0]?.total_buyins || 0);
+    const totalCashouts = parseFloat(gameStats?.[0]?.total_cashouts || 0);
+    const discrepancy = totalCashouts - totalBuyins;
+    
+    await queryDatabase(`
+      UPDATE games 
+      SET total_buyins = $1, total_cashouts = $2, discrepancy = $3, updated_at = NOW()
+      WHERE id = $4
+    `, [totalBuyins, totalCashouts, discrepancy, gameId]);
+    
+    console.log('🎮 Player removed from game successfully');
+    res.json({ message: 'Player removed from game successfully' });
+  } catch (error) {
+    console.error('🎮 Error removing player from game:', error);
+    res.status(500).json({ error: 'Failed to remove player from game' });
+  }
+});
+
 // Update player amounts in game endpoint
 app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
   try {

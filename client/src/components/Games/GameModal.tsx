@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Plus, Trash2, Search } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Game, Player, CreateGameRequest } from '../../types';
@@ -158,12 +158,25 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
         const currentGameDetails = await apiService.getGame(game.id);
         const currentPlayerIds = currentGameDetails.players.map(p => p.player_id);
         
-        // Find players to add and players to update
+        // Find players to add, update, and remove
+        const formPlayerIds = formData.players.map(gp => gp.player_id);
         const playersToAdd = formData.players.filter(gp => !currentPlayerIds.includes(gp.player_id));
         const playersToUpdate = formData.players.filter(gp => currentPlayerIds.includes(gp.player_id));
+        const playersToRemove = currentGameDetails.players.filter(p => !formPlayerIds.includes(p.player_id));
         
         // Track errors
         const errors: string[] = [];
+        
+        // Remove players that were deleted from the form
+        for (const playerToRemove of playersToRemove) {
+          try {
+            await apiService.removePlayerFromGame(game.id, playerToRemove.player_id);
+          } catch (removeErr: any) {
+            const errorMsg = removeErr?.message || 'Unknown error';
+            errors.push(`Failed to remove ${playerToRemove.player_name}: ${errorMsg}`);
+            console.error('Could not remove player from game:', removeErr);
+          }
+        }
         
         // Add new players to the game
         for (const newPlayer of playersToAdd) {

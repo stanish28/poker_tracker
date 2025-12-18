@@ -179,6 +179,12 @@ class ApiService {
     });
   }
 
+  async removePlayerFromGame(gameId: string, playerId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/games/${gameId}/players/${playerId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Settlement endpoints
   async getSettlements(): Promise<Settlement[]> {
     return this.request<Settlement[]>('/settlements');
