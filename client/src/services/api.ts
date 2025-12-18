@@ -247,6 +247,40 @@ class ApiService {
     return this.request<PlayerDebts>(`/settlements/player/${playerId}/debts`);
   }
 
+  // Recalculate player statistics
+  async recalculateAllPlayerStats(): Promise<{
+    message: string;
+    updated: number;
+    players: Array<{
+      id: string;
+      name: string;
+      net_profit: number;
+      total_games: number;
+      total_buyins: number;
+      total_cashouts: number;
+    }>;
+  }> {
+    return this.request('/players/recalculate-stats', {
+      method: 'POST',
+    });
+  }
+
+  async recalculatePlayerStats(playerId: string): Promise<{
+    message: string;
+    player: {
+      id: string;
+      name: string;
+      net_profit: number;
+      total_games: number;
+      total_buyins: number;
+      total_cashouts: number;
+    };
+  }> {
+    return this.request(`/players/${playerId}/recalculate-stats`, {
+      method: 'POST',
+    });
+  }
+
   // Bulk game creation endpoints
   async parseGameText(text: string, date?: string): Promise<{
     success: boolean;

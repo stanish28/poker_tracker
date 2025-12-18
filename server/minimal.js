@@ -380,6 +380,129 @@ app.put('/api/players/:id', async (req, res) => {
   }
 });
 
+// Recalculate all player statistics from game_players table
+app.post('/api/players/recalculate-stats', async (req, res) => {
+  try {
+    console.log('🔄 Recalculating all player statistics...');
+    
+    // Get all players
+    const players = await queryDatabase(`SELECT id, name FROM players`);
+    
+    if (!players || players.length === 0) {
+      return res.json({ message: 'No players found', updated: 0 });
+    }
+    
+    let updatedCount = 0;
+    const results = [];
+    
+    for (const player of players) {
+      // Calculate actual stats from game_players table
+      const gameStats = await queryDatabase(`
+        SELECT 
+          COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+          COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts,
+          COUNT(*) as total_games
+        FROM game_players 
+        WHERE player_id = $1
+      `, [player.id]);
+      
+      const totalBuyins = parseFloat(gameStats?.[0]?.total_buyins || 0);
+      const totalCashouts = parseFloat(gameStats?.[0]?.total_cashouts || 0);
+      const totalGames = parseInt(gameStats?.[0]?.total_games || 0);
+      const netProfit = totalCashouts - totalBuyins;
+      
+      // Update player record
+      await queryDatabase(`
+        UPDATE players 
+        SET 
+          net_profit = $1,
+          total_games = $2,
+          total_buyins = $3,
+          total_cashouts = $4,
+          updated_at = NOW()
+        WHERE id = $5
+      `, [netProfit, totalGames, totalBuyins, totalCashouts, player.id]);
+      
+      updatedCount++;
+      results.push({
+        id: player.id,
+        name: player.name,
+        net_profit: netProfit,
+        total_games: totalGames,
+        total_buyins: totalBuyins,
+        total_cashouts: totalCashouts
+      });
+    }
+    
+    console.log('🔄 Successfully recalculated stats for', updatedCount, 'players');
+    res.json({ 
+      message: `Successfully recalculated statistics for ${updatedCount} players`,
+      updated: updatedCount,
+      players: results
+    });
+  } catch (error) {
+    console.error('🔄 Error recalculating player stats:', error);
+    res.status(500).json({ error: 'Failed to recalculate player statistics' });
+  }
+});
+
+// Recalculate single player statistics
+app.post('/api/players/:id/recalculate-stats', async (req, res) => {
+  try {
+    const playerId = req.params.id;
+    console.log('🔄 Recalculating stats for player:', playerId);
+    
+    // Check if player exists
+    const player = await queryDatabase(`SELECT id, name FROM players WHERE id = $1`, [playerId]);
+    if (!player || player.length === 0) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    
+    // Calculate actual stats from game_players table
+    const gameStats = await queryDatabase(`
+      SELECT 
+        COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+        COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts,
+        COUNT(*) as total_games
+      FROM game_players 
+      WHERE player_id = $1
+    `, [playerId]);
+    
+    const totalBuyins = parseFloat(gameStats?.[0]?.total_buyins || 0);
+    const totalCashouts = parseFloat(gameStats?.[0]?.total_cashouts || 0);
+    const totalGames = parseInt(gameStats?.[0]?.total_games || 0);
+    const netProfit = totalCashouts - totalBuyins;
+    
+    // Update player record
+    await queryDatabase(`
+      UPDATE players 
+      SET 
+        net_profit = $1,
+        total_games = $2,
+        total_buyins = $3,
+        total_cashouts = $4,
+        updated_at = NOW()
+      WHERE id = $5
+    `, [netProfit, totalGames, totalBuyins, totalCashouts, playerId]);
+    
+    console.log('🔄 Successfully recalculated stats for player:', player[0].name);
+    res.json({ 
+      message: `Successfully recalculated statistics for ${player[0].name}`,
+      player: {
+        id: playerId,
+        name: player[0].name,
+        net_profit: netProfit,
+        total_games: totalGames,
+        total_buyins: totalBuyins,
+        total_cashouts: totalCashouts
+      }
+    });
+  } catch (error) {
+    console.error('🔄 Error recalculating player stats:', error);
+    res.status(500).json({ error: 'Failed to recalculate player statistics' });
+  }
+});
+
 // Delete player endpoint
 app.delete('/api/players/:id', async (req, res) => {
   try {

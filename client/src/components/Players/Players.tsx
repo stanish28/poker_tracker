@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, X, RefreshCw } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
@@ -21,6 +21,7 @@ const Players: React.FC = () => {
     true_net_profit: number;
     settlements_count: number;
   }>>({});
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
   useEffect(() => {
     fetchPlayers();
@@ -198,6 +199,28 @@ const Players: React.FC = () => {
     return netProfitData ? netProfitData.true_net_profit : parseFloat(String(players.find(p => p.id === playerId)?.net_profit || 0));
   };
 
+  const handleRecalculateStats = async () => {
+    if (!window.confirm('This will recalculate all player statistics from game records. Continue?')) {
+      return;
+    }
+
+    try {
+      setIsRecalculating(true);
+      setError(null);
+      const result = await apiService.recalculateAllPlayerStats();
+      
+      // Refresh player data
+      await fetchPlayers();
+      
+      alert(`Successfully recalculated statistics for ${result.updated} players!`);
+    } catch (err: any) {
+      setError('Failed to recalculate player statistics');
+      console.error('Recalculate stats error:', err);
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
   if (isLoading) {
     return <LoadingSpinner size="lg" text="Loading players..." />;
   }
@@ -215,13 +238,24 @@ const Players: React.FC = () => {
             )}
           </p>
         </div>
-        <button
-          onClick={handleCreatePlayer}
-          className="btn btn-primary btn-md w-full sm:w-auto"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Player
-        </button>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+          <button
+            onClick={handleRecalculateStats}
+            className="btn btn-secondary btn-md w-full sm:w-auto"
+            disabled={isRecalculating}
+            title="Recalculate all player statistics from game records"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} />
+            {isRecalculating ? 'Recalculating...' : 'Sync Stats'}
+          </button>
+          <button
+            onClick={handleCreatePlayer}
+            className="btn btn-primary btn-md w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Player
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
