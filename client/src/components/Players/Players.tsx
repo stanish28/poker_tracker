@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, X, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, X, RefreshCw, LineChart } from 'lucide-react';
 import { apiService } from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 import { Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 import PlayerModal from './PlayerModal';
+import PlayerPerformanceModal from './PlayerPerformanceModal';
 
 const Players: React.FC = () => {
+  const { addToast } = useToast();
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
+  const [performancePlayer, setPerformancePlayer] = useState<Player | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'net_profit' | 'total_games'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -166,8 +170,10 @@ const Players: React.FC = () => {
   const handlePlayerSaved = (savedPlayer: Player) => {
     if (editingPlayer) {
       setPlayers(prev => prev.map(p => p.id === savedPlayer.id ? savedPlayer : p));
+      addToast('Player updated', 'success');
     } else {
       setPlayers(prev => [...prev, savedPlayer]);
+      addToast('Player added', 'success');
     }
     handleModalClose();
   };
@@ -334,6 +340,13 @@ const Players: React.FC = () => {
                     <h3 className="text-lg font-semibold text-gray-900">{player.name}</h3>
                     <div className="flex space-x-2">
                       <button
+                        onClick={() => setPerformancePlayer(player)}
+                        className="btn btn-secondary btn-sm"
+                        title="View playing curve"
+                      >
+                        <LineChart className="h-4 w-4" />
+                      </button>
+                      <button
                         onClick={() => handleEditPlayer(player)}
                         className="btn btn-secondary btn-sm"
                       >
@@ -434,6 +447,13 @@ const Players: React.FC = () => {
                     </div>
                     
                     <div className="flex items-center space-x-2 ml-2">
+                      <button
+                        onClick={() => setPerformancePlayer(player)}
+                        className="btn btn-secondary btn-sm p-2"
+                        title="View playing curve"
+                      >
+                        <LineChart className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => togglePlayerDetails(player.id)}
                         className="btn btn-secondary btn-sm p-2"
@@ -536,6 +556,14 @@ const Players: React.FC = () => {
           player={editingPlayer}
           onClose={handleModalClose}
           onSave={handlePlayerSaved}
+        />
+      )}
+
+      {/* Player Performance (curve) Modal */}
+      {performancePlayer && (
+        <PlayerPerformanceModal
+          player={performancePlayer}
+          onClose={() => setPerformancePlayer(null)}
         />
       )}
     </div>

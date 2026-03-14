@@ -1,11 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Gamepad2, 
-  CreditCard, 
+import {
+  Users,
+  Gamepad2,
+  CreditCard,
   DollarSign,
-  Activity
+  Activity,
+  Trophy,
+  TrendingDown
 } from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 import { apiService } from '../../services/api';
 import { DashboardStats } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
@@ -14,12 +26,13 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [, setPlayerNetProfits] = useState<Record<string, {
+  const [playerNetProfits, setPlayerNetProfits] = useState<Record<string, {
     game_net_profit: number;
     settlement_impact: number;
     true_net_profit: number;
     settlements_count: number;
   }>>({});
+  const [players, setPlayers] = useState<Array<{ id: string; name: string }>>([]);
   const [totalDiscrepancy, setTotalDiscrepancy] = useState<{
     total_positive_profit: number;
     total_negative_profit: number;
@@ -34,7 +47,7 @@ const Dashboard: React.FC = () => {
         setIsLoading(true);
         setError(null);
 
-                const [players, games, settlements, gameStats, settlementStats, discrepancyData] = await Promise.all([
+                const [playersData, games, settlements, gameStats, settlementStats, discrepancyData] = await Promise.all([
                   apiService.getPlayers(),
                   apiService.getGames(),
                   apiService.getSettlements(),
@@ -42,6 +55,7 @@ const Dashboard: React.FC = () => {
                   apiService.getSettlementStats(),
                   apiService.getTotalDiscrepancy()
                 ]);
+        setPlayers(playersData);
 
         // Fetch true net profit for all players in a single request
         try {
@@ -58,7 +72,7 @@ const Dashboard: React.FC = () => {
           console.error('Failed to fetch bulk net profit data:', err);
           // Fallback: create default data for all players
           const netProfitData: Record<string, any> = {};
-          players.forEach(player => {
+          playersData.forEach((player: { id: string; net_profit?: number }) => {
             netProfitData[player.id] = {
               game_net_profit: parseFloat(String(player.net_profit || 0)),
               settlement_impact: 0,
@@ -95,7 +109,7 @@ const Dashboard: React.FC = () => {
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
         setStats({
-          totalPlayers: players.length,
+          totalPlayers: playersData.length,
           totalGames: gameStats.total_games,
           totalSettlements: settlementStats.total_settlements,
           totalVolume,
@@ -234,6 +248,80 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Leaders: Top winners and top losers */}
+      {players.length > 0 && Object.keys(playerNetProfits).length > 0 && (() => {
+        const withProfit = players.map((p) => ({
+          name: p.name,
+          true_net_profit: playerNetProfits[p.id]?.true_net_profit ?? 0
+        }));
+        const topWinners = [...withProfit].filter((p) => p.true_net_profit > 0).sort((a, b) => b.true_net_profit - a.true_net_profit).slice(0, 5);
+        const topLosers = [...withProfit].filter((p) => p.true_net_profit < 0).sort((a, b) => a.true_net_profit - b.true_net_profit).slice(0, 5).map((p) => ({ ...p, displayAmount: Math.abs(p.true_net_profit) }));
+        const hasLeaders = topWinners.length > 0 || topLosers.length > 0;
+        if (!hasLeaders) return null;
+        return (
+          <div className="card">
+            <div className="card-header">
+              <h3 className="text-lg font-semibold text-gray-900">Leaders</h3>
+              <p className="text-sm text-gray-500 mt-0.5">Top winners and biggest losses (true net profit)</p>
+            </div>
+            <div className="card-content">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Trophy className="h-5 w-5 text-green-600" />
+                    <h4 className="font-medium text-gray-900">Top Winners</h4>
+                  </div>
+                  {topWinners.length > 0 ? (
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topWinners} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" tickFormatter={(v) => `$${v}`} />
+                          <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
+                          <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Net profit']} labelFormatter={(name) => name} />
+                          <Bar dataKey="true_net_profit" radius={[0, 4, 4, 0]}>
+                            {topWinners.map((_, i) => (
+                              <Cell key={i} fill="#16a34a" />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 py-4">No winners yet</p>
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <TrendingDown className="h-5 w-5 text-red-600" />
+                    <h4 className="font-medium text-gray-900">Biggest Losses</h4>
+                  </div>
+                  {topLosers.length > 0 ? (
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={topLosers} layout="vertical" margin={{ top: 4, right: 8, left: 4, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" tickFormatter={(v) => `$${v}`} />
+                          <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
+                          <Tooltip formatter={(v: number) => [`-$${v.toFixed(2)}`, 'Net loss']} labelFormatter={(name) => name} />
+                          <Bar dataKey="displayAmount" radius={[0, 4, 4, 0]}>
+                            {topLosers.map((_, i) => (
+                              <Cell key={i} fill="#dc2626" />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 py-4">No losses yet</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

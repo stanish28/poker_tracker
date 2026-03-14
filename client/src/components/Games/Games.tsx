@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle, FileText, Search, X } from 'lucide-react';
 import { apiService } from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 import { Game, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 import GameModal from './GameModal';
@@ -8,6 +9,7 @@ import GameDetailsModal from './GameDetailsModal';
 import TextImportModal from './BulkGameModal';
 
 const Games: React.FC = () => {
+  const { addToast } = useToast();
   const [games, setGames] = useState<Game[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -130,8 +132,8 @@ const Games: React.FC = () => {
   };
 
   const handleGameSaved = async (savedGame: Game) => {
-    // Always refetch games to ensure we have the latest data
     await fetchGames();
+    addToast('Game saved', 'success');
     handleModalClose();
   };
 

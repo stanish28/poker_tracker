@@ -164,6 +164,114 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Get player performance over time (for playing curve chart)
+router.get('/:id/performance', async (req, res) => {
+  try {
+    const playerId = req.params.id;
+
+    const player = await getQuery(`
+      SELECT id, name FROM players WHERE id = ?
+    `, [playerId]);
+
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+
+    const games = await allQuery(`
+      SELECT g.id as game_id, g.date, gp.profit
+      FROM games g
+      JOIN game_players gp ON g.id = gp.game_id
+      WHERE gp.player_id = ?
+      ORDER BY g.date ASC, g.created_at ASC
+    `, [playerId]);
+
+    let cumulative = 0;
+    const dataPoints = games.map((row) => {
+      const profit = parseFloat(row.profit || 0);
+      cumulative += profit;
+      return {
+        date: row.date,
+        game_id: row.game_id,
+        profit,
+        cumulativeProfit: Math.round(cumulative * 100) / 100
+      };
+    });
+
+    // Summary stats and trajectory
+    let summary = null;
+    if (games.length > 0) {
+      const profits = dataPoints.map((d) => d.profit);
+      const winningGames = profits.filter((p) => p > 0).length;
+      const totalProfit = profits.reduce((s, p) => s + p, 0);
+      const avgProfitPerGame = totalProfit / games.length;
+      const bestIdx = profits.indexOf(Math.max(...profits));
+      const worstIdx = profits.indexOf(Math.min(...profits));
+
+      // Current streak (from most recent game backward)
+      let currentStreak = 0;
+      let streakType = null;
+      for (let i = profits.length - 1; i >= 0; i--) {
+        if (streakType === null) {
+          streakType = profits[i] > 0 ? 'winning' : 'losing';
+          currentStreak = 1;
+        } else if ((profits[i] > 0) === (streakType === 'winning')) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+
+      // Trend: compare last N vs previous N games (N = 5, or half if fewer than 10)
+      const n = Math.min(5, Math.floor(games.length / 2));
+      let trend = 'stable';
+      let trendLabel = 'Not enough games for trend';
+      if (n >= 2) {
+        const recent = profits.slice(-n);
+        const previous = profits.slice(-n * 2, -n);
+        const recentAvg = recent.reduce((s, p) => s + p, 0) / recent.length;
+        const previousAvg = previous.reduce((s, p) => s + p, 0) / previous.length;
+        const diff = recentAvg - previousAvg;
+        if (diff > 1) {
+          trend = 'up';
+          trendLabel = `Up in last ${n} games (avg $${recentAvg.toFixed(2)} vs $${previousAvg.toFixed(2)})`;
+        } else if (diff < -1) {
+          trend = 'down';
+          trendLabel = `Down in last ${n} games (avg $${recentAvg.toFixed(2)} vs $${previousAvg.toFixed(2)})`;
+        } else {
+          trendLabel = `Stable (last ${n} games similar to previous)`;
+        }
+      } else if (games.length >= 2) {
+        trendLabel = `Only ${games.length} games – keep playing for trend`;
+      }
+
+      summary = {
+        winRatePercent: Math.round((winningGames / games.length) * 100),
+        avgProfitPerGame: Math.round(avgProfitPerGame * 100) / 100,
+        bestGame: {
+          profit: dataPoints[bestIdx].profit,
+          date: dataPoints[bestIdx].date
+        },
+        worstGame: {
+          profit: dataPoints[worstIdx].profit,
+          date: dataPoints[worstIdx].date
+        },
+        trend,
+        trendLabel,
+        currentStreak: { count: currentStreak, type: streakType }
+      };
+    }
+
+    res.json({
+      player: { id: player.id, name: player.name },
+      dataPoints,
+      summary
+    });
+  } catch (error) {
+    console.error('Error fetching player performance:', error);
+    res.status(500).json({ error: 'Failed to fetch player performance' });
+  }
+});
+
 // Get player statistics
 router.get('/:id/stats', async (req, res) => {
   try {

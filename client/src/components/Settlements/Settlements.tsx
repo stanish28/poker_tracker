@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Edit2, Trash2, CreditCard, DollarSign } from 'lucide-react';
 import { apiService } from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 import { Settlement, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 import SettlementModal from './SettlementModal';
 import SettlementDetailsModal from './SettlementDetailsModal';
 
 const Settlements: React.FC = () => {
+  const { addToast } = useToast();
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,8 +82,10 @@ const Settlements: React.FC = () => {
   const handleSettlementSaved = (savedSettlement: Settlement) => {
     if (editingSettlement) {
       setSettlements(prev => prev.map(s => s.id === savedSettlement.id ? savedSettlement : s));
+      addToast('Settlement updated', 'success');
     } else {
       setSettlements(prev => [savedSettlement, ...prev]);
+      addToast('Settlement added', 'success');
     }
     handleModalClose();
   };

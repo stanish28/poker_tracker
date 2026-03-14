@@ -3,6 +3,7 @@ import {
   User, 
   Player, 
   PlayerStats, 
+  PlayerPerformanceResponse,
   Game, 
   GameWithPlayers, 
   CreateGameRequest, 
@@ -131,10 +132,15 @@ class ApiService {
     return this.request<PlayerStats>(`/players/${id}/stats`);
   }
 
+  async getPlayerPerformance(playerId: string): Promise<PlayerPerformanceResponse> {
+    return this.request<PlayerPerformanceResponse>(`/players/${playerId}/performance`);
+  }
+
   // Game endpoints
   async getGames(playerId?: string): Promise<Game[]> {
     const params = playerId ? `?playerId=${playerId}` : '';
-    return this.request<Game[]>(`/games${params}`);
+    const response = await this.request<Game[] | { games: Game[] }>(`/games${params}`);
+    return Array.isArray(response) ? response : (response?.games ?? []);
   }
 
   async getGame(id: string): Promise<GameWithPlayers> {

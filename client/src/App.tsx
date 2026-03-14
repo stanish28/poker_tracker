@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import LoginForm from './components/Auth/LoginForm';
 import RegisterForm from './components/Auth/RegisterForm';
 import Navigation from './components/Layout/Navigation';
 import LoadingSpinner from './components/Layout/LoadingSpinner';
+import ToastContainer from './components/Layout/ToastContainer';
 import Dashboard from './components/Dashboard/Dashboard';
 import Players from './components/Players/Players';
 import Games from './components/Games/Games';
@@ -55,6 +57,7 @@ const AppContent: React.FC = () => {
       <main className="max-w-7xl mx-auto py-4 px-3 sm:py-6 sm:px-6 lg:px-8 pb-20 md:pb-6">
         {renderContent()}
       </main>
+      <ToastContainer />
     </div>
   );
 };
@@ -62,7 +65,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 };

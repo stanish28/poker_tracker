@@ -40,6 +40,22 @@ export interface RecentGame {
   profit: number;
 }
 
+export interface PlayerPerformanceSummary {
+  winRatePercent: number;
+  avgProfitPerGame: number;
+  bestGame: { profit: number; date: string };
+  worstGame: { profit: number; date: string };
+  trend: 'up' | 'down' | 'stable';
+  trendLabel: string;
+  currentStreak: { count: number; type: 'winning' | 'losing' };
+}
+
+export interface PlayerPerformanceResponse {
+  player: { id: string; name: string };
+  dataPoints: Array<{ date: string; game_id: string; profit: number; cumulativeProfit: number }>;
+  summary: PlayerPerformanceSummary | null;
+}
+
 // Game types
 export interface Game {
   id: string;
