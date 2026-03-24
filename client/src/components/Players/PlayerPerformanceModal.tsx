@@ -62,8 +62,6 @@ const PlayerPerformanceModal: React.FC<PlayerPerformanceModalProps> = ({ player,
     };
   }, [player]);
 
-  if (!player) return null;
-
   const currentProfit = dataPoints.length > 0 ? dataPoints[dataPoints.length - 1].cumulativeProfit : 0;
 
   const xTickInterval = dataPoints.length > 12 ? ('preserveStartEnd' as const) : 0;
@@ -95,6 +93,8 @@ const PlayerPerformanceModal: React.FC<PlayerPerformanceModalProps> = ({ player,
   }, [dataPoints]);
 
   const barBottomMargin = dataPoints.length > 5 ? 56 : 24;
+
+  if (!player) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
