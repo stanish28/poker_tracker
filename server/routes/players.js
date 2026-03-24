@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
   try {
     const players = await allQuery(`
       SELECT 
-        id, name, net_profit, total_games, total_buyins, total_cashouts,
+        id, name, email, net_profit, total_games, total_buyins, total_cashouts,
         created_at, updated_at
       FROM players 
       ORDER BY name ASC
@@ -31,7 +31,7 @@ router.get('/:id', async (req, res) => {
   try {
     const player = await getQuery(`
       SELECT 
-        id, name, net_profit, total_games, total_buyins, total_cashouts,
+        id, name, email, net_profit, total_games, total_buyins, total_cashouts,
         created_at, updated_at
       FROM players 
       WHERE id = ?
@@ -50,7 +50,8 @@ router.get('/:id', async (req, res) => {
 
 // Create new player
 router.post('/', [
-  body('name').trim().isLength({ min: 1 }).withMessage('Player name is required')
+  body('name').trim().isLength({ min: 1 }).withMessage('Player name is required'),
+  body('email').optional({ nullable: true }).isEmail().withMessage('Invalid email address')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -58,7 +59,7 @@ router.post('/', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name } = req.body;
+    const { name, email } = req.body;
 
     // Check if player already exists
     const existingPlayer = await getQuery('SELECT id FROM players WHERE name = ?', [name]);
@@ -68,13 +69,13 @@ router.post('/', [
 
     const playerId = uuidv4();
     await runQuery(
-      'INSERT INTO players (id, name) VALUES (?, ?)',
-      [playerId, name]
+      'INSERT INTO players (id, name, email) VALUES (?, ?, ?)',
+      [playerId, name, email || null]
     );
 
     const newPlayer = await getQuery(`
       SELECT 
-        id, name, net_profit, total_games, total_buyins, total_cashouts,
+        id, name, email, net_profit, total_games, total_buyins, total_cashouts,
         created_at, updated_at
       FROM players 
       WHERE id = ?
@@ -89,7 +90,8 @@ router.post('/', [
 
 // Update player
 router.put('/:id', [
-  body('name').trim().isLength({ min: 1 }).withMessage('Player name is required')
+  body('name').trim().isLength({ min: 1 }).withMessage('Player name is required'),
+  body('email').optional({ nullable: true }).isEmail().withMessage('Invalid email address')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -97,7 +99,7 @@ router.put('/:id', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name } = req.body;
+    const { name, email } = req.body;
     const playerId = req.params.id;
 
     // Check if player exists
@@ -113,13 +115,13 @@ router.put('/:id', [
     }
 
     await runQuery(
-      'UPDATE players SET name = ?, updated_at = NOW() WHERE id = ?',
-      [name, playerId]
+      'UPDATE players SET name = ?, email = ?, updated_at = NOW() WHERE id = ?',
+      [name, email || null, playerId]
     );
 
     const updatedPlayer = await getQuery(`
       SELECT 
-        id, name, net_profit, total_games, total_buyins, total_cashouts,
+        id, name, email, net_profit, total_games, total_buyins, total_cashouts,
         created_at, updated_at
       FROM players 
       WHERE id = ?

@@ -12,15 +12,16 @@ interface PlayerModalProps {
 const PlayerModal: React.FC<PlayerModalProps> = ({ player, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (player) {
-      setFormData({ name: player.name });
+      setFormData({ name: player.name, email: player.email || '' });
     } else {
-      setFormData({ name: '' });
+      setFormData({ name: '', email: '' });
     }
     setError(null);
   }, [player]);
@@ -39,11 +40,13 @@ const PlayerModal: React.FC<PlayerModalProps> = ({ player, onClose, onSave }) =>
       setIsLoading(true);
       setError(null);
 
+      const emailValue = formData.email.trim() || undefined;
+
       let savedPlayer: Player;
       if (player) {
-        savedPlayer = await apiService.updatePlayer(player.id, formData.name.trim());
+        savedPlayer = await apiService.updatePlayer(player.id, formData.name.trim(), emailValue);
       } else {
-        savedPlayer = await apiService.createPlayer(formData.name.trim());
+        savedPlayer = await apiService.createPlayer(formData.name.trim(), emailValue);
       }
 
       onSave(savedPlayer);
@@ -79,7 +82,7 @@ const PlayerModal: React.FC<PlayerModalProps> = ({ player, onClose, onSave }) =>
             </div>
           )}
 
-          <div className="mb-6">
+          <div className="mb-4">
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
               Player Name
             </label>
@@ -95,6 +98,25 @@ const PlayerModal: React.FC<PlayerModalProps> = ({ player, onClose, onSave }) =>
               disabled={isLoading}
               autoFocus
             />
+          </div>
+
+          <div className="mb-6">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              Email (for game notifications)
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="input"
+              placeholder="player@example.com"
+              disabled={isLoading}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Optional — players with an email will receive game result notifications.
+            </p>
           </div>
 
           <div className="flex justify-end space-x-3">

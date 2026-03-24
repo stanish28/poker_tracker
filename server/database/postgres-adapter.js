@@ -63,6 +63,7 @@ class DatabaseAdapter {
           CREATE TABLE IF NOT EXISTS players (
             id TEXT PRIMARY KEY,
             name TEXT UNIQUE NOT NULL,
+            email TEXT,
             net_profit DECIMAL DEFAULT 0,
             total_games INTEGER DEFAULT 0,
             total_buyins DECIMAL DEFAULT 0,
@@ -71,6 +72,11 @@ class DatabaseAdapter {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )
         `);
+
+        // Migration: add email column to existing players table
+        await client.query(`
+          ALTER TABLE players ADD COLUMN IF NOT EXISTS email TEXT
+        `).catch(() => {});
 
         // Games table
         await client.query(`
@@ -120,7 +126,7 @@ class DatabaseAdapter {
         `);
 
         await client.query('COMMIT');
-        console.log('✅ PostgreSQL tables initialized successfully');
+        console.log('✅ PostgreSQL tables initialized successfully (with email column)');
         
       } catch (error) {
         await client.query('ROLLBACK');
@@ -150,6 +156,7 @@ class DatabaseAdapter {
             CREATE TABLE IF NOT EXISTS players (
               id TEXT PRIMARY KEY,
               name TEXT UNIQUE NOT NULL,
+              email TEXT,
               net_profit REAL DEFAULT 0,
               total_games INTEGER DEFAULT 0,
               total_buyins REAL DEFAULT 0,
@@ -158,6 +165,13 @@ class DatabaseAdapter {
               updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
           `);
+
+          // Migration: add email column to existing players table
+          this.db.run(`ALTER TABLE players ADD COLUMN email TEXT`, (err) => {
+            if (err && !err.message.includes('duplicate column')) {
+              // Column already exists, ignore
+            }
+          });
 
           // Games table
           this.db.run(`
