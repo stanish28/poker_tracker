@@ -1,11 +1,41 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Search, X, RefreshCw, LineChart } from 'lucide-react';
+import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, Search, X, RefreshCw, LineChart } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
 import PlayerModal from './PlayerModal';
 import PlayerPerformanceModal from './PlayerPerformanceModal';
+
+const AVATAR_BACKGROUNDS = [
+  'bg-primary-600',
+  'bg-blue-600',
+  'bg-emerald-600',
+  'bg-violet-600',
+  'bg-amber-600',
+  'bg-rose-600',
+  'bg-cyan-600',
+  'bg-indigo-600',
+] as const;
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const a = parts[0][0] || '';
+    const b = parts[parts.length - 1][0] || '';
+    return (a + b).toUpperCase();
+  }
+  const single = parts[0] || name;
+  return single.slice(0, 2).toUpperCase();
+}
+
+function getAvatarBgClass(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) | 0;
+  }
+  return AVATAR_BACKGROUNDS[Math.abs(h) % AVATAR_BACKGROUNDS.length];
+}
 
 const Players: React.FC = () => {
   const { addToast } = useToast();
@@ -14,7 +44,8 @@ const Players: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
-  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
+  /** Which player's full details are shown below the icon row (click same icon to close). */
+  const [detailPlayerId, setDetailPlayerId] = useState<string | null>(null);
   const [performancePlayer, setPerformancePlayer] = useState<Player | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'net_profit' | 'total_games'>('name');
@@ -89,6 +120,7 @@ const Players: React.FC = () => {
     try {
       await apiService.deletePlayer(player.id);
       setPlayers(prev => prev.filter(p => p.id !== player.id));
+      setDetailPlayerId((current) => (current === player.id ? null : current));
       setError(null); // Clear any previous errors
     } catch (err: any) {
       if (err.message?.includes('game records')) {
@@ -105,16 +137,8 @@ const Players: React.FC = () => {
     setEditingPlayer(null);
   };
 
-  const togglePlayerDetails = (playerId: string) => {
-    setExpandedPlayers(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(playerId)) {
-        newSet.delete(playerId);
-      } else {
-        newSet.add(playerId);
-      }
-      return newSet;
-    });
+  const toggleDetailPanel = (playerId: string) => {
+    setDetailPlayerId((prev) => (prev === playerId ? null : playerId));
   };
 
   const clearSearch = () => {
@@ -166,6 +190,15 @@ const Players: React.FC = () => {
       }
     });
   }, [players, searchTerm, sortBy, sortOrder, playerNetProfits]);
+
+  useEffect(() => {
+    if (
+      detailPlayerId &&
+      !filteredAndSortedPlayers.some((p) => p.id === detailPlayerId)
+    ) {
+      setDetailPlayerId(null);
+    }
+  }, [detailPlayerId, filteredAndSortedPlayers]);
 
   const handlePlayerSaved = (savedPlayer: Player) => {
     if (editingPlayer) {
@@ -328,189 +361,140 @@ const Players: React.FC = () => {
         </div>
       )}
 
-      {/* Players List */}
+      {/* Players: icon row + detail panel (accordion) */}
       {filteredAndSortedPlayers.length > 0 ? (
-        <>
-          {/* Desktop Grid */}
-          <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAndSortedPlayers.map((player) => (
-              <div key={player.id} className="card">
-                <div className="card-content">
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">{player.name}</h3>
-                    <div className="flex space-x-2">
+        <div className="space-y-4">
+          <div className="card p-4 sm:p-5">
+            <p className="mb-3 text-xs text-gray-500 sm:text-sm">
+              Click a player icon to open their details. Click again to close.
+            </p>
+            <div className="flex flex-wrap gap-3 sm:gap-4">
+              {filteredAndSortedPlayers.map((player) => {
+                const active = detailPlayerId === player.id;
+                return (
+                  <button
+                    key={player.id}
+                    type="button"
+                    onClick={() => toggleDetailPanel(player.id)}
+                    title={`${player.name} — ${formatCurrency(getTrueNetProfit(player.id))} (${player.total_games} games)`}
+                    aria-pressed={active}
+                    className={`rounded-full transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+                      active ? 'ring-2 ring-primary-500 ring-offset-2 ring-offset-white scale-105' : 'hover:opacity-90 active:scale-95'
+                    }`}
+                  >
+                    <div
+                      className={`flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full text-xs sm:text-sm font-semibold text-white shadow-md ${getAvatarBgClass(player.id)}`}
+                    >
+                      {getInitials(player.name)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {detailPlayerId &&
+            (() => {
+              const player = filteredAndSortedPlayers.find((p) => p.id === detailPlayerId);
+              if (!player) return null;
+              const net = playerNetProfits[player.id];
+              return (
+                <div className="card overflow-hidden slide-up">
+                  <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold text-gray-900">{player.name}</h3>
+                      <div className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm ${getProfitColor(getTrueNetProfit(player.id))}`}>
+                        <span className="flex items-center gap-1 font-medium">
+                          {getProfitIcon(getTrueNetProfit(player.id))}
+                          {formatCurrency(getTrueNetProfit(player.id))}
+                        </span>
+                        <span className="text-gray-500">· {player.total_games} games</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-shrink-0 flex-wrap gap-1">
                       <button
+                        type="button"
                         onClick={() => setPerformancePlayer(player)}
                         className="btn btn-secondary btn-sm"
                         title="View playing curve"
                       >
-                        <LineChart className="h-4 w-4" />
+                        <LineChart className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Curve</span>
+                      </button>
+                      <button type="button" onClick={() => handleEditPlayer(player)} className="btn btn-secondary btn-sm">
+                        <Edit2 className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Edit</span>
+                      </button>
+                      <button type="button" onClick={() => handleDeletePlayer(player)} className="btn btn-danger btn-sm">
+                        <Trash2 className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Delete</span>
                       </button>
                       <button
-                        onClick={() => handleEditPlayer(player)}
+                        type="button"
+                        onClick={() => setDetailPlayerId(null)}
                         className="btn btn-secondary btn-sm"
+                        title="Close details"
                       >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeletePlayer(player)}
-                        className="btn btn-danger btn-sm"
-                      >
-                        <Trash2 className="h-4 w-4" />
+                        <X className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">True Net Profit</span>
-                      <div className={`flex items-center space-x-1 ${getProfitColor(getTrueNetProfit(player.id))}`}>
+                  <div className="space-y-3 p-4 sm:p-5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">True Net Profit</span>
+                      <div className={`flex items-center gap-1 ${getProfitColor(getTrueNetProfit(player.id))}`}>
                         {getProfitIcon(getTrueNetProfit(player.id))}
                         <span className="font-medium">{formatCurrency(getTrueNetProfit(player.id))}</span>
                       </div>
                     </div>
 
-                    {playerNetProfits[player.id] && playerNetProfits[player.id].settlements_count > 0 && (
-                      <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    {net && net.settlements_count > 0 && (
+                      <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-blue-700 font-medium">Settlement Impact</span>
-                          <span className={`text-sm font-medium ${getProfitColor(playerNetProfits[player.id].settlement_impact)}`}>
-                            {formatCurrency(playerNetProfits[player.id].settlement_impact)}
+                          <span className="text-sm font-medium text-blue-700">Settlement Impact</span>
+                          <span className={`text-sm font-medium ${getProfitColor(net.settlement_impact)}`}>
+                            {formatCurrency(net.settlement_impact)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-blue-600">Game Net Profit</span>
-                          <span className="text-xs text-gray-600">{formatCurrency(playerNetProfits[player.id].game_net_profit)}</span>
+                          <span className="text-xs text-gray-700">{formatCurrency(net.game_net_profit)}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-blue-600">Settlements</span>
-                          <span className="text-xs text-gray-600">{playerNetProfits[player.id].settlements_count} transactions</span>
+                          <span className="text-xs text-gray-700">{net.settlements_count} transactions</span>
                         </div>
-                        <div className="text-xs text-blue-500 mt-1">
-                          💡 Paying settlement increases net profit (settles debt). Receiving settlement decreases net profit (money paid out).
-                        </div>
+                        <p className="text-xs text-blue-600">
+                          Paying a settlement increases net profit (debt cleared). Receiving decreases it (paid out).
+                        </p>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Total Games</span>
-                      <span className="text-sm font-medium text-gray-900">{player.total_games}</span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Total Buy-ins</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatCurrency(player.total_buyins)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Total Cash-outs</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {formatCurrency(player.total_cashouts)}
-                      </span>
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-200">
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>Joined</span>
-                        <span>{new Date(player.created_at).toLocaleDateString()}</span>
+                    <div className="grid grid-cols-2 gap-3 text-sm lg:grid-cols-3">
+                      <div className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2">
+                        <span className="text-gray-600">Total Games</span>
+                        <span className="font-medium text-gray-900">{player.total_games}</span>
                       </div>
+                      <div className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2">
+                        <span className="text-gray-600">Buy-ins</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(player.total_buyins)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2 col-span-2 lg:col-span-1">
+                        <span className="text-gray-600">Cash-outs</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(player.total_cashouts)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
+                      <span>Joined</span>
+                      <span>{new Date(player.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Mobile Compact Bars */}
-          <div className="md:hidden space-y-2">
-            {filteredAndSortedPlayers.map((player) => {
-              const isExpanded = expandedPlayers.has(player.id);
-              return (
-                <div key={player.id} className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                  {/* Main Bar - Always Visible */}
-                  <div className="flex items-center justify-between p-3">
-                    <div className="flex items-center flex-1 min-w-0">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <h3 className="font-semibold text-gray-900 truncate">{player.name}</h3>
-                          <span className="text-xs text-gray-500 whitespace-nowrap">
-                            {player.total_games} games
-                          </span>
-                        </div>
-                        <div className={`flex items-center space-x-1 ${getProfitColor(getTrueNetProfit(player.id))}`}>
-                          {getProfitIcon(getTrueNetProfit(player.id))}
-                          <span className="font-bold">{formatCurrency(getTrueNetProfit(player.id))}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2 ml-2">
-                      <button
-                        onClick={() => setPerformancePlayer(player)}
-                        className="btn btn-secondary btn-sm p-2"
-                        title="View playing curve"
-                      >
-                        <LineChart className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => togglePlayerDetails(player.id)}
-                        className="btn btn-secondary btn-sm p-2"
-                        title={isExpanded ? 'Show Less' : 'Show Details'}
-                      >
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleEditPlayer(player)}
-                        className="btn btn-secondary btn-sm p-2"
-                        title="Edit Player"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeletePlayer(player)}
-                        className="btn btn-danger btn-sm p-2"
-                        title="Delete Player"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Expandable Details */}
-                  {isExpanded && (
-                    <div className="px-3 pb-3 pt-0 border-t border-gray-100 animate-slide-up">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Buy-ins</span>
-                          <p className="font-medium text-gray-900">
-                            {formatCurrency(player.total_buyins)}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Cash-outs</span>
-                          <p className="font-medium text-gray-900">
-                            {formatCurrency(player.total_cashouts)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-gray-100">
-                        <span className="text-xs text-gray-500">
-                          Joined {new Date(player.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
-            })}
-          </div>
-        </>
+            })()}
+        </div>
       ) : (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
