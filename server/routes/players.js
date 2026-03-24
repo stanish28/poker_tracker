@@ -178,16 +178,19 @@ router.get('/:id/performance', async (req, res) => {
     }
 
     const games = await allQuery(`
-      SELECT g.id as game_id, g.date, gp.profit
+      SELECT g.id as game_id, g.date, gp.profit, gp.buyin, gp.cashout
       FROM games g
       JOIN game_players gp ON g.id = gp.game_id
       WHERE gp.player_id = ?
-      ORDER BY g.date ASC, g.created_at ASC
+      ORDER BY g.date ASC, g.id ASC
     `, [playerId]);
 
     let cumulative = 0;
     const dataPoints = games.map((row) => {
-      const profit = parseFloat(row.profit || 0);
+      const stored = parseFloat(row.profit);
+      const profit = Number.isFinite(stored)
+        ? stored
+        : parseFloat(row.cashout || 0) - parseFloat(row.buyin || 0);
       cumulative += profit;
       return {
         date: row.date,

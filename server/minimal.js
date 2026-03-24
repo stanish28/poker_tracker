@@ -589,6 +589,119 @@ app.get('/api/players', async (req, res) => {
   }
 });
 
+// Player performance over time (playing curve) — must exist here: Vercel routes /api to minimal.js
+app.get('/api/players/:id/performance', async (req, res) => {
+  try {
+    const playerId = req.params.id;
+
+    const playerRows = await queryDatabase(
+      `SELECT id, name FROM players WHERE id = $1`,
+      [playerId]
+    );
+    if (!playerRows || playerRows.length === 0) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    const player = playerRows[0];
+
+    const games = await queryDatabase(
+      `
+      SELECT g.id as game_id, g.date, gp.profit, gp.cashout, gp.buyin
+      FROM games g
+      JOIN game_players gp ON g.id = gp.game_id
+      WHERE gp.player_id = $1
+      ORDER BY g.date ASC, g.id ASC
+    `,
+      [playerId]
+    );
+
+    const rows = games || [];
+    let cumulative = 0;
+    const dataPoints = rows.map((row) => {
+      const stored = parseFloat(row.profit);
+      const profit = Number.isFinite(stored)
+        ? stored
+        : parseFloat(row.cashout || 0) - parseFloat(row.buyin || 0);
+      cumulative += profit;
+      return {
+        date: row.date,
+        game_id: row.game_id,
+        profit,
+        cumulativeProfit: Math.round(cumulative * 100) / 100
+      };
+    });
+
+    let summary = null;
+    if (dataPoints.length > 0) {
+      const profits = dataPoints.map((d) => d.profit);
+      const winningGames = profits.filter((p) => p > 0).length;
+      const totalProfit = profits.reduce((s, p) => s + p, 0);
+      const avgProfitPerGame = totalProfit / dataPoints.length;
+      const bestIdx = profits.indexOf(Math.max(...profits));
+      const worstIdx = profits.indexOf(Math.min(...profits));
+
+      let currentStreak = 0;
+      let streakType = null;
+      for (let i = profits.length - 1; i >= 0; i--) {
+        if (streakType === null) {
+          streakType = profits[i] > 0 ? 'winning' : 'losing';
+          currentStreak = 1;
+        } else if ((profits[i] > 0) === (streakType === 'winning')) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+
+      const n = Math.min(5, Math.floor(dataPoints.length / 2));
+      let trend = 'stable';
+      let trendLabel = 'Not enough games for trend';
+      if (n >= 2) {
+        const recent = profits.slice(-n);
+        const previous = profits.slice(-n * 2, -n);
+        const recentAvg = recent.reduce((s, p) => s + p, 0) / recent.length;
+        const previousAvg = previous.reduce((s, p) => s + p, 0) / previous.length;
+        const diff = recentAvg - previousAvg;
+        if (diff > 1) {
+          trend = 'up';
+          trendLabel = `Up in last ${n} games (avg $${recentAvg.toFixed(2)} vs $${previousAvg.toFixed(2)})`;
+        } else if (diff < -1) {
+          trend = 'down';
+          trendLabel = `Down in last ${n} games (avg $${recentAvg.toFixed(2)} vs $${previousAvg.toFixed(2)})`;
+        } else {
+          trendLabel = `Stable (last ${n} games similar to previous)`;
+        }
+      } else if (dataPoints.length >= 2) {
+        trendLabel = `Only ${dataPoints.length} games – keep playing for trend`;
+      }
+
+      summary = {
+        winRatePercent: Math.round((winningGames / dataPoints.length) * 100),
+        avgProfitPerGame: Math.round(avgProfitPerGame * 100) / 100,
+        bestGame: {
+          profit: dataPoints[bestIdx].profit,
+          date: dataPoints[bestIdx].date
+        },
+        worstGame: {
+          profit: dataPoints[worstIdx].profit,
+          date: dataPoints[worstIdx].date
+        },
+        trend,
+        trendLabel,
+        currentStreak: { count: currentStreak, type: streakType }
+      };
+    }
+
+    res.json({
+      player: { id: player.id, name: player.name },
+      dataPoints,
+      summary
+    });
+  } catch (error) {
+    console.error('Error fetching player performance:', error);
+    res.status(500).json({ error: 'Failed to fetch player performance' });
+  }
+});
+
 // Individual player net profit endpoint
 app.get('/api/players/:id/net-profit', async (req, res) => {
   try {
