@@ -7,36 +7,6 @@ import LoadingSpinner from '../Layout/LoadingSpinner';
 import PlayerModal from './PlayerModal';
 import PlayerPerformanceModal from './PlayerPerformanceModal';
 
-const AVATAR_BACKGROUNDS = [
-  'bg-primary-600',
-  'bg-blue-600',
-  'bg-emerald-600',
-  'bg-violet-600',
-  'bg-amber-600',
-  'bg-rose-600',
-  'bg-cyan-600',
-  'bg-indigo-600',
-] as const;
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    const a = parts[0][0] || '';
-    const b = parts[parts.length - 1][0] || '';
-    return (a + b).toUpperCase();
-  }
-  const single = parts[0] || name;
-  return single.slice(0, 2).toUpperCase();
-}
-
-function getAvatarBgClass(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h * 31 + id.charCodeAt(i)) | 0;
-  }
-  return AVATAR_BACKGROUNDS[Math.abs(h) % AVATAR_BACKGROUNDS.length];
-}
-
 const Players: React.FC = () => {
   const { addToast } = useToast();
   const [players, setPlayers] = useState<Player[]>([]);
@@ -361,36 +331,47 @@ const Players: React.FC = () => {
         </div>
       )}
 
-      {/* Players: icon row + detail panel (accordion) */}
+      {/* Players: name list + detail panel (accordion) */}
       {filteredAndSortedPlayers.length > 0 ? (
         <div className="space-y-4">
-          <div className="card p-4 sm:p-5">
-            <p className="mb-3 text-xs text-gray-500 sm:text-sm">
-              Click a player icon to open their details. Click again to close.
-            </p>
-            <div className="flex flex-wrap gap-3 sm:gap-4">
+          <div className="card overflow-hidden p-0 sm:p-0">
+            <div className="border-b border-gray-100 px-4 py-3 sm:px-5 sm:py-4">
+              <p className="text-xs text-gray-500 sm:text-sm">
+                Click a player&apos;s name to open their details. Click the same row again to close.
+              </p>
+            </div>
+            <ul className="max-h-[min(50vh,28rem)] divide-y divide-gray-100 overflow-y-auto overscroll-contain sm:max-h-[min(55vh,32rem)]">
               {filteredAndSortedPlayers.map((player) => {
                 const active = detailPlayerId === player.id;
+                const profit = getTrueNetProfit(player.id);
                 return (
-                  <button
-                    key={player.id}
-                    type="button"
-                    onClick={() => toggleDetailPanel(player.id)}
-                    title={`${player.name} — ${formatCurrency(getTrueNetProfit(player.id))} (${player.total_games} games)`}
-                    aria-pressed={active}
-                    className={`rounded-full transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
-                      active ? 'ring-2 ring-primary-500 ring-offset-2 ring-offset-white scale-105' : 'hover:opacity-90 active:scale-95'
-                    }`}
-                  >
-                    <div
-                      className={`flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full text-xs sm:text-sm font-semibold text-white shadow-md ${getAvatarBgClass(player.id)}`}
+                  <li key={player.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleDetailPanel(player.id)}
+                      aria-pressed={active}
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 sm:px-5 sm:py-3.5 ${
+                        active
+                          ? 'bg-primary-50 text-gray-900'
+                          : 'text-gray-900 hover:bg-gray-50'
+                      }`}
                     >
-                      {getInitials(player.name)}
-                    </div>
-                  </button>
+                      <span className="min-w-0 flex-1 font-medium sm:text-base">{player.name}</span>
+                      <span
+                        className={`flex shrink-0 items-center gap-1 text-sm font-semibold tabular-nums ${getProfitColor(profit)}`}
+                      >
+                        {getProfitIcon(profit)}
+                        <span>{formatCurrency(profit)}</span>
+                      </span>
+                      <span className="shrink-0 text-right text-xs tabular-nums text-gray-500 sm:min-w-[5rem] sm:text-sm">
+                        <span className="sm:hidden">{player.total_games} g</span>
+                        <span className="hidden sm:inline">{player.total_games} games</span>
+                      </span>
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           </div>
 
           {detailPlayerId &&
