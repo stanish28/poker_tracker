@@ -22,12 +22,28 @@ interface PlayerPerformanceModalProps {
   onClose: () => void;
 }
 
+/** Tailwind `sm` (640px): treat narrower viewports as phone layout for the curve chart. */
+function useIsBelowSmBreakpoint() {
+  const [isNarrow, setIsNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onChange = () => setIsNarrow(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isNarrow;
+}
+
 const PlayerPerformanceModal: React.FC<PlayerPerformanceModalProps> = ({ player, onClose }) => {
   const [dataPoints, setDataPoints] = useState<Array<{ date: string; cumulativeProfit: number; profit: number }>>([]);
   const [playerName, setPlayerName] = useState('');
   const [summary, setSummary] = useState<PlayerPerformanceSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isPhoneChart = useIsBelowSmBreakpoint();
 
   useEffect(() => {
     if (!player) return;
@@ -222,18 +238,51 @@ const PlayerPerformanceModal: React.FC<PlayerPerformanceModalProps> = ({ player,
                         tickFormatter={(v: number) => `$${v}`}
                       />
                       <Tooltip
-                        formatter={(value: number) => [`$${value.toFixed(2)}`, 'Cumulative profit']}
-                        labelFormatter={(label: string) => `Game: ${label}`}
+                        wrapperStyle={{ zIndex: 60 }}
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const row = payload[0].payload as {
+                            date: string;
+                            cumulativeProfit: number;
+                            profit: number;
+                          };
+                          return (
+                            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs shadow-md">
+                              <p className="mb-1.5 font-medium text-gray-900">Game: {label}</p>
+                              <p className="text-gray-700">
+                                Cumulative:{' '}
+                                <span className="font-semibold tabular-nums">
+                                  ${row.cumulativeProfit.toFixed(2)}
+                                </span>
+                              </p>
+                              <p className="mt-0.5 text-gray-600">
+                                This game:{' '}
+                                <span
+                                  className={`font-semibold tabular-nums ${
+                                    row.profit >= 0 ? 'text-green-600' : 'text-red-600'
+                                  }`}
+                                >
+                                  ${row.profit.toFixed(2)}
+                                </span>
+                              </p>
+                            </div>
+                          );
+                        }}
                       />
                       <ReferenceLine y={0} stroke="#9ca3af" strokeDasharray="3 3" />
                       <Line
                         type="monotone"
                         dataKey="cumulativeProfit"
                         stroke="#2563eb"
-                        strokeWidth={2}
-                        dot={{ r: 2 }}
-                        activeDot={{ r: 4 }}
+                        strokeWidth={isPhoneChart ? 2.5 : 2}
+                        dot={isPhoneChart ? false : { r: 2 }}
+                        activeDot={
+                          isPhoneChart
+                            ? { r: 6, strokeWidth: 2, stroke: '#fff', fill: '#2563eb' }
+                            : { r: 4 }
+                        }
                         name="Cumulative profit"
+                        isAnimationActive={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>
