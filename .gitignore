@@ -1,2 +1,8 @@
 node_modules
 .vercel
+
+# Local env (never commit secrets)
+.env
+**/.env
+.env.local
+.env.*.local
