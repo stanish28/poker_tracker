@@ -443,18 +443,18 @@ router.post('/:gameId/players', [
     `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
 
     // Check if all players were added successfully
-    const errors = results.filter(r => r.error);
-    if (errors.length > 0 && results.length === errors.length) {
+    const playerErrors = results.filter(r => r.error);
+    if (playerErrors.length > 0 && results.length === playerErrors.length) {
       return res.status(400).json({ 
         error: 'Failed to add players',
-        details: errors
+        details: playerErrors
       });
     }
 
     res.json({ 
       message: playersToAdd.length === 1 ? 'Player added to game successfully' : 'Players added to game successfully',
       players: results.filter(r => !r.error),
-      errors: errors.length > 0 ? errors : undefined
+      errors: playerErrors.length > 0 ? playerErrors : undefined
     });
   } catch (error) {
     console.error('Error adding player to game:', error);
