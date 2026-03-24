@@ -106,19 +106,51 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
   };
 
   const handleDistributeDiscrepancy = () => {
-    if (discrepancy <= 0 || profitablePlayers.length === 0) return;
+    setFormData(prev => {
+      const totalB = prev.players.reduce((sum, gp) => sum + parseFloat(gp.buyin.toString()), 0);
+      const totalC = prev.players.reduce((sum, gp) => sum + parseFloat(gp.cashout.toString()), 0);
+      const disc = totalC - totalB;
 
-    setFormData(prev => ({
-      ...prev,
-      players: prev.players.map(gp => {
-        const isWinner = profitablePlayers.some(winner => winner.player_id === gp.player_id);
-        if (isWinner) {
-          const newCashout = parseFloat(gp.cashout.toString()) - discrepancyPerWinner;
-          return { ...gp, cashout: newCashout };
-        }
-        return gp;
-      })
-    }));
+      if (disc > 0) {
+        const winners = prev.players.filter(
+          gp => parseFloat(gp.cashout.toString()) - parseFloat(gp.buyin.toString()) > 0
+        );
+        if (winners.length === 0) return prev;
+        const per = disc / winners.length;
+        return {
+          ...prev,
+          players: prev.players.map(gp => {
+            if (winners.some(w => w.player_id === gp.player_id)) {
+              return {
+                ...gp,
+                cashout: parseFloat(gp.cashout.toString()) - per,
+              };
+            }
+            return gp;
+          }),
+        };
+      }
+
+      if (disc < 0) {
+        const buyers = prev.players.filter(gp => parseFloat(gp.buyin.toString()) > 0);
+        if (buyers.length === 0) return prev;
+        const per = -disc / buyers.length;
+        return {
+          ...prev,
+          players: prev.players.map(gp => {
+            if (buyers.some(b => b.player_id === gp.player_id)) {
+              return {
+                ...gp,
+                cashout: parseFloat(gp.cashout.toString()) + per,
+              };
+            }
+            return gp;
+          }),
+        };
+      }
+
+      return prev;
+    });
   };
 
   const handleRemovePlayer = (index: number) => {
@@ -296,6 +328,14 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
     ? discrepancy / profitablePlayers.length 
     : 0;
 
+  const buyinPlayers = formData.players.filter(gp => parseFloat(gp.buyin.toString()) > 0);
+  const discrepancyPerBuyer =
+    discrepancy < 0 && buyinPlayers.length > 0 ? -discrepancy / buyinPlayers.length : 0;
+
+  const canDistributePositive = discrepancy > 0 && profitablePlayers.length > 0;
+  const canDistributeNegative = discrepancy < 0 && buyinPlayers.length > 0;
+  const showDistributeButton = canDistributePositive || canDistributeNegative;
+
   const isFormValid = formData.players.length > 0 && formData.players.every(gp => 
     gp.player_id && gp.buyin >= 0 && gp.cashout >= 0
   );
@@ -405,12 +445,18 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
               <div className="space-y-3">
                 {filteredGamePlayers.map((gamePlayer, originalIndex) => {
                   const index = formData.players.findIndex(gp => gp.player_id === gamePlayer.player_id);
-                  const isWinner = profitablePlayers.some(winner => winner.player_id === gamePlayer.player_id) && discrepancy > 0;
+                  const isPositiveTarget =
+                    discrepancy > 0 &&
+                    profitablePlayers.some(winner => winner.player_id === gamePlayer.player_id);
+                  const isNegativeTarget =
+                    discrepancy < 0 && parseFloat(gamePlayer.buyin.toString()) > 0;
                   return (
                     <div key={index} className={`flex items-center justify-between p-3 border rounded-lg ${
-                      isWinner
+                      isPositiveTarget
                         ? 'border-success-300 bg-success-50'
-                        : 'border-gray-200 bg-white'
+                        : isNegativeTarget
+                          ? 'border-warning-300 bg-warning-50'
+                          : 'border-gray-200 bg-white'
                     }`}>
                       {/* Player Name - Left Side */}
                       <div className="flex-shrink-0 min-w-0 flex-1 mr-4">
@@ -478,12 +524,16 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
             <div className="mb-6 p-4 bg-gray-50 rounded-lg">
               <div className="flex justify-between items-center mb-3">
                 <h4 className="font-medium text-gray-900">Game Summary</h4>
-                {discrepancy > 0 && profitablePlayers.length > 0 && (
+                {showDistributeButton && (
                   <button
                     type="button"
                     onClick={handleDistributeDiscrepancy}
                     className="btn btn-primary btn-sm"
-                    title={`Distribute $${discrepancy.toFixed(2)} among ${profitablePlayers.length} winners`}
+                    title={
+                      canDistributePositive
+                        ? `Reduce cash-outs by $${discrepancyPerWinner.toFixed(2)} each for ${profitablePlayers.length} winner(s)`
+                        : `Increase cash-outs by $${discrepancyPerBuyer.toFixed(2)} each for ${buyinPlayers.length} player(s) with a buy-in`
+                    }
                   >
                     Distribute Discrepancy
                   </button>
@@ -511,16 +561,31 @@ const GameModal: React.FC<GameModalProps> = ({ game, players, onClose, onSave })
               </div>
 
               {/* Discrepancy Distribution Info */}
-              {discrepancy > 0 && profitablePlayers.length > 0 && (
+              {canDistributePositive && (
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Distribution per winner:</span>
+                    <span className="text-gray-600">Per winner (reduce cash-out):</span>
                     <span className="font-medium text-primary-600">
                       ${discrepancyPerWinner.toFixed(2)} × {profitablePlayers.length}
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Click "Distribute Discrepancy" to reduce each winner's cash-out by ${discrepancyPerWinner.toFixed(2)}
+                    Distributes the excess cash-out by reducing each profitable player&apos;s cash-out by $
+                    {discrepancyPerWinner.toFixed(2)}.
+                  </p>
+                </div>
+              )}
+              {canDistributeNegative && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Per buy-in (increase cash-out):</span>
+                    <span className="font-medium text-primary-600">
+                      ${discrepancyPerBuyer.toFixed(2)} × {buyinPlayers.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Distributes the shortfall by increasing each player&apos;s cash-out (buy-in &gt; 0) by $
+                    {discrepancyPerBuyer.toFixed(2)}.
                   </p>
                 </div>
               )}
