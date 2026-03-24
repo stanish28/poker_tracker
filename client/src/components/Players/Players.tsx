@@ -334,13 +334,13 @@ const Players: React.FC = () => {
       {/* Players: name list + detail panel (accordion) */}
       {filteredAndSortedPlayers.length > 0 ? (
         <div className="space-y-4">
-          <div className="card overflow-hidden p-0 sm:p-0">
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-0 sm:p-0">
             <div className="border-b border-gray-100 px-4 py-3 sm:px-5 sm:py-4">
               <p className="text-xs text-gray-500 sm:text-sm">
                 Click a player&apos;s name to open their details. Click the same row again to close.
               </p>
             </div>
-            <ul className="max-h-[min(60vh,34rem)] divide-y divide-gray-100 overflow-y-auto overscroll-contain sm:max-h-[min(65vh,40rem)]">
+            <ul className="divide-y divide-gray-100">
               {filteredAndSortedPlayers.map((player) => {
                 const active = detailPlayerId === player.id;
                 const profit = getTrueNetProfit(player.id);
