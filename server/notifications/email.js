@@ -1,4 +1,12 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+// Prefer IPv4 for SMTP — some serverless egress paths fail Gmail over IPv6.
+try {
+  dns.setDefaultResultOrder?.('ipv4first');
+} catch (_) {
+  /* ignore */
+}
 
 /**
  * Email notification service for Poker Tracker.
@@ -8,6 +16,7 @@ const nodemailer = require('nodemailer');
  */
 
 let transporter = null;
+let missingConfigLogged = false;
 
 function getTransporter() {
   if (transporter) return transporter;
@@ -22,6 +31,9 @@ function getTransporter() {
   transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user, pass },
+    connectionTimeout: 25_000,
+    greetingTimeout: 25_000,
+    socketTimeout: 25_000,
   });
 
   return transporter;
@@ -41,7 +53,12 @@ async function sendGameResultEmail(playerEmail, playerName, { buyin, cashout, pr
   try {
     const transport = getTransporter();
     if (!transport) {
-      // Email not configured — silently skip
+      if (!missingConfigLogged) {
+        missingConfigLogged = true;
+        console.warn(
+          '📧 Game emails disabled: set EMAIL_USER and EMAIL_PASS on the server (Vercel → Environment Variables for Production). Gmail requires an App Password.'
+        );
+      }
       return;
     }
 

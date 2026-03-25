@@ -228,25 +228,26 @@ router.post('/', [
       WHERE id = ?
     `, [gameId]);
 
-    res.status(201).json(newGame);
-
-    // Send email notifications (fire-and-forget, never blocks response)
-    for (const player of players) {
-      try {
-        const playerData = await getQuery('SELECT name, email FROM players WHERE id = ?', [player.player_id]);
-        if (playerData && playerData.email) {
-          const profit = parseFloat(player.cashout) - parseFloat(player.buyin);
-          sendGameResultEmail(playerData.email, playerData.name, {
-            buyin: player.buyin,
-            cashout: player.cashout,
-            profit,
-            date,
-          }).catch(() => {});
+    await Promise.allSettled(
+      players.map(async (player) => {
+        try {
+          const playerData = await getQuery('SELECT name, email FROM players WHERE id = ?', [player.player_id]);
+          if (playerData && playerData.email) {
+            const profit = parseFloat(player.cashout) - parseFloat(player.buyin);
+            await sendGameResultEmail(playerData.email, playerData.name, {
+              buyin: player.buyin,
+              cashout: player.cashout,
+              profit,
+              date,
+            });
+          }
+        } catch (emailErr) {
+          /* non-fatal */
         }
-      } catch (emailErr) {
-        // Silently ignore email errors
-      }
-    }
+      })
+    );
+
+    res.status(201).json(newGame);
   } catch (error) {
     console.error('Error creating game:', error);
     res.status(500).json({ error: 'Failed to create game' });
@@ -470,29 +471,30 @@ router.post('/:gameId/players', [
       });
     }
 
+    const game = await getQuery('SELECT date FROM games WHERE id = ?', [gameId]);
+    await Promise.allSettled(
+      results.filter(r => !r.error).map(async (result) => {
+        try {
+          const playerData = await getQuery('SELECT email FROM players WHERE id = ?', [result.player_id]);
+          if (playerData && playerData.email) {
+            await sendGameResultEmail(playerData.email, result.player_name, {
+              buyin: result.buyin,
+              cashout: result.cashout,
+              profit: result.profit,
+              date: game?.date || new Date().toISOString(),
+            });
+          }
+        } catch (emailErr) {
+          /* non-fatal */
+        }
+      })
+    );
+
     res.json({ 
       message: playersToAdd.length === 1 ? 'Player added to game successfully' : 'Players added to game successfully',
       players: results.filter(r => !r.error),
       errors: playerErrors.length > 0 ? playerErrors : undefined
     });
-
-    // Send email notifications for successfully added players (fire-and-forget)
-    const game = await getQuery('SELECT date FROM games WHERE id = ?', [gameId]);
-    for (const result of results.filter(r => !r.error)) {
-      try {
-        const playerData = await getQuery('SELECT email FROM players WHERE id = ?', [result.player_id]);
-        if (playerData && playerData.email) {
-          sendGameResultEmail(playerData.email, result.player_name, {
-            buyin: result.buyin,
-            cashout: result.cashout,
-            profit: result.profit,
-            date: game?.date || new Date().toISOString(),
-          }).catch(() => {});
-        }
-      } catch (emailErr) {
-        // Silently ignore email errors
-      }
-    }
   } catch (error) {
     console.error('Error adding player to game:', error);
     res.status(500).json({ error: 'Failed to add player to game' });

@@ -2,7 +2,7 @@ const express = require('express');
 
 const app = express();
 
-// Force redeploy - version 1.0.2
+// Force redeploy - version 1.0.3 (email: await SMTP before HTTP response for Vercel)
 
 app.use(express.json());
 
@@ -111,7 +111,7 @@ app.get('/api/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     database_pool: !!dbPool,
-    version: '1.0.2'
+    version: '1.0.3'
   });
 });
 
@@ -1046,10 +1046,11 @@ app.post('/api/games/:gameId/players', async (req, res) => {
     console.log('🎮 Players added to game successfully');
     const gd = await queryDatabase('SELECT date FROM games WHERE id = $1', [gameId]);
     const gameDate = gd?.[0]?.date || new Date().toISOString();
-    res.json({ message: 'Players added successfully' });
 
-    for (const p of playersToAdd) {
-      (async () => {
+    // Await SMTP before responding — Vercel terminates the function after res.json(),
+    // which previously killed fire-and-forget email tasks.
+    await Promise.allSettled(
+      playersToAdd.map(async (p) => {
         try {
           const rows = await queryDatabase(
             'SELECT name, email FROM players WHERE id = $1',
@@ -1067,8 +1068,10 @@ app.post('/api/games/:gameId/players', async (req, res) => {
         } catch (_) {
           /* non-fatal */
         }
-      })();
-    }
+      })
+    );
+
+    res.json({ message: 'Players added successfully' });
   } catch (error) {
     console.error('🎮 Error adding players to game:', error);
     res.status(500).json({ error: 'Failed to add players to game' });
@@ -1404,11 +1407,10 @@ app.post('/api/games', async (req, res) => {
       createdGame && createdGame.length > 0
         ? createdGame[0]
         : { id: gameId, date, message: 'Game created successfully' };
-    res.status(201).json(payload);
-
     const gameDate = payload.date || date;
-    for (const gp of players) {
-      (async () => {
+
+    await Promise.allSettled(
+      players.map(async (gp) => {
         try {
           const rows = await queryDatabase(
             'SELECT name, email FROM players WHERE id = $1',
@@ -1426,8 +1428,10 @@ app.post('/api/games', async (req, res) => {
         } catch (_) {
           /* non-fatal */
         }
-      })();
-    }
+      })
+    );
+
+    res.status(201).json(payload);
   } catch (error) {
     console.error('🎮 Error creating game:', error);
     res.status(500).json({ error: 'Failed to create game' });
@@ -2039,6 +2043,26 @@ app.post('/api/bulk-game/create', async (req, res) => {
       WHERE gp.game_id = $1
       ORDER BY p.name
     `, [gameId]);
+
+    await Promise.allSettled(
+      processedPlayers.map(async (player) => {
+        try {
+          const rows = await queryDatabase(
+            'SELECT name, email FROM players WHERE id = $1',
+            [player.player_id]
+          );
+          if (!rows || !rows[0] || !rows[0].email) return;
+          await sendGameResultEmail(rows[0].email, rows[0].name, {
+            buyin: player.buyin,
+            cashout: player.cashout,
+            profit: player.profit,
+            date,
+          });
+        } catch (_) {
+          /* non-fatal */
+        }
+      })
+    );
 
     res.status(201).json({
       success: true,
