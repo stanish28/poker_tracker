@@ -6,6 +6,8 @@ const app = express();
 
 app.use(express.json());
 
+const { sendGameResultEmail } = require('./notifications/email');
+
 // Simple database connection
 let dbPool = null;
 
@@ -43,6 +45,12 @@ async function initializeDatabase() {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+
+    try {
+      await queryDatabase(`ALTER TABLE players ADD COLUMN IF NOT EXISTS email TEXT`);
+    } catch (e) {
+      console.warn('⚠️ players.email migration skipped:', e?.message || e);
+    }
     
     console.log('✅ Database tables initialized');
   } catch (error) {
@@ -358,22 +366,34 @@ app.get('/api/auth/verify', async (req, res) => {
 app.put('/api/players/:id', async (req, res) => {
   try {
     const playerId = req.params.id;
-    const { name } = req.body;
+    const { name, email } = req.body;
     console.log('👥 Update player endpoint called for player:', playerId, 'new name:', name);
     
     if (!name || name.trim() === '') {
       return res.status(400).json({ error: 'Player name is required' });
     }
+
+    const emailVal = email === undefined || email === '' || email === null
+      ? null
+      : String(email).trim();
+    if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      return res.status(400).json({ error: 'Invalid email address' });
+    }
     
-    // Update player name
     const result = await queryDatabase(`
       UPDATE players 
-      SET name = $1, updated_at = NOW()
-      WHERE id = $2
-    `, [name.trim(), playerId]);
+      SET name = $1, email = $2, updated_at = NOW()
+      WHERE id = $3
+      RETURNING id, name, email, net_profit, total_games, total_buyins, total_cashouts, created_at, updated_at
+    `, [name.trim(), emailVal, playerId]);
+
+    const row = result?.rows?.[0];
+    if (!row) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
     
     console.log('👥 Player updated successfully');
-    res.json({ message: 'Player updated successfully' });
+    res.json(row);
   } catch (error) {
     console.error('👥 Error updating player:', error);
     res.status(500).json({ error: 'Failed to update player' });
@@ -536,6 +556,44 @@ app.delete('/api/players/:id', async (req, res) => {
   }
 });
 
+// Create player (Vercel API parity with main server)
+app.post('/api/players', async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || String(name).trim() === '') {
+      return res.status(400).json({ error: 'Player name is required' });
+    }
+    const emailVal = email === undefined || email === '' || email === null
+      ? null
+      : String(email).trim();
+    if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      return res.status(400).json({ error: 'Invalid email address' });
+    }
+    const dup = await queryDatabase(
+      'SELECT id FROM players WHERE LOWER(name) = LOWER($1)',
+      [String(name).trim()]
+    );
+    if (dup && dup.length > 0) {
+      return res.status(400).json({ error: 'Player with this name already exists' });
+    }
+    const id = require('crypto').randomUUID();
+    const ins = await queryDatabase(
+      `INSERT INTO players (id, name, email)
+       VALUES ($1, $2, $3)
+       RETURNING id, name, email, net_profit, total_games, total_buyins, total_cashouts, created_at, updated_at`,
+      [id, String(name).trim(), emailVal]
+    );
+    const row = ins?.rows?.[0];
+    if (!row) {
+      return res.status(500).json({ error: 'Failed to create player' });
+    }
+    res.status(201).json(row);
+  } catch (error) {
+    console.error('👥 Error creating player:', error);
+    res.status(500).json({ error: 'Failed to create player' });
+  }
+});
+
 // Players endpoints (real data with fallback)
 app.get('/api/players', async (req, res) => {
   try {
@@ -543,7 +601,7 @@ app.get('/api/players', async (req, res) => {
     // Try to get real data from database
     const players = await queryDatabase(`
       SELECT 
-        id, name, net_profit, total_games, total_buyins, total_cashouts, created_at
+        id, name, email, net_profit, total_games, total_buyins, total_cashouts, created_at, updated_at
       FROM players 
       ORDER BY name
     `);
@@ -986,7 +1044,31 @@ app.post('/api/games/:gameId/players', async (req, res) => {
     }
     
     console.log('🎮 Players added to game successfully');
+    const gd = await queryDatabase('SELECT date FROM games WHERE id = $1', [gameId]);
+    const gameDate = gd?.[0]?.date || new Date().toISOString();
     res.json({ message: 'Players added successfully' });
+
+    for (const p of playersToAdd) {
+      (async () => {
+        try {
+          const rows = await queryDatabase(
+            'SELECT name, email FROM players WHERE id = $1',
+            [p.player_id]
+          );
+          if (!rows || !rows[0] || !rows[0].email) return;
+          const profit =
+            parseFloat(p.cashout || 0) - parseFloat(p.buyin || 0);
+          await sendGameResultEmail(rows[0].email, rows[0].name, {
+            buyin: p.buyin,
+            cashout: p.cashout,
+            profit,
+            date: gameDate,
+          });
+        } catch (_) {
+          /* non-fatal */
+        }
+      })();
+    }
   } catch (error) {
     console.error('🎮 Error adding players to game:', error);
     res.status(500).json({ error: 'Failed to add players to game' });
@@ -1318,10 +1400,33 @@ app.post('/api/games', async (req, res) => {
       WHERE id = $1
     `, [gameId]);
     
-    if (createdGame && createdGame.length > 0) {
-      res.status(201).json(createdGame[0]);
-    } else {
-      res.status(201).json({ id: gameId, message: 'Game created successfully' });
+    const payload =
+      createdGame && createdGame.length > 0
+        ? createdGame[0]
+        : { id: gameId, date, message: 'Game created successfully' };
+    res.status(201).json(payload);
+
+    const gameDate = payload.date || date;
+    for (const gp of players) {
+      (async () => {
+        try {
+          const rows = await queryDatabase(
+            'SELECT name, email FROM players WHERE id = $1',
+            [gp.player_id]
+          );
+          if (!rows || !rows[0] || !rows[0].email) return;
+          const profit =
+            parseFloat(gp.cashout || 0) - parseFloat(gp.buyin || 0);
+          await sendGameResultEmail(rows[0].email, rows[0].name, {
+            buyin: gp.buyin,
+            cashout: gp.cashout,
+            profit,
+            date: gameDate,
+          });
+        } catch (_) {
+          /* non-fatal */
+        }
+      })();
     }
   } catch (error) {
     console.error('🎮 Error creating game:', error);
