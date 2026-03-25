@@ -115,7 +115,7 @@ router.put('/:id', [
     }
 
     await runQuery(
-      'UPDATE players SET name = ?, email = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE players SET name = ?, email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       [name, email || null, playerId]
     );
 

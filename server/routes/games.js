@@ -215,7 +215,7 @@ router.post('/', [
           total_games = total_games + 1,
           total_buyins = total_buyins + ?,
           total_cashouts = total_cashouts + ?,
-          updated_at = NOW()
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [profit, player.buyin, player.cashout, player.player_id]);
     }
@@ -339,7 +339,7 @@ router.delete('/:id', async (req, res) => {
           total_games = total_games - 1,
           total_buyins = total_buyins - ?,
           total_cashouts = total_cashouts - ?,
-          updated_at = NOW()
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [player.profit, player.buyin, player.cashout, player.player_id]);
     }
@@ -430,7 +430,7 @@ router.post('/:gameId/players', [
           total_games = total_games + 1,
           total_buyins = total_buyins + ?,
           total_cashouts = total_cashouts + ?,
-          updated_at = NOW()
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [profit, bin, cout, pid]);
 
@@ -457,7 +457,7 @@ router.post('/:gameId/players', [
 
     await runQuery(`
       UPDATE games 
-      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = NOW()
+      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
 
@@ -544,7 +544,7 @@ router.put('/:gameId/players/:playerId', [
 
     await runQuery(`
       UPDATE games 
-      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = NOW()
+      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
 
@@ -563,7 +563,7 @@ router.put('/:gameId/players/:playerId', [
         net_profit = net_profit + ?,
         total_buyins = total_buyins + ?,
         total_cashouts = total_cashouts + ?,
-        updated_at = NOW()
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
 
