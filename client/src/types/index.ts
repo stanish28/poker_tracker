@@ -15,6 +15,7 @@ export interface AuthResponse {
 export interface Player {
   id: string;
   name: string;
+  email?: string;
   net_profit: number;
   total_games: number;
   total_buyins: number;

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import LoginForm from './components/Auth/LoginForm';
@@ -10,6 +11,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import Players from './components/Players/Players';
 import Games from './components/Games/Games';
 import Settlements from './components/Settlements/Settlements';
+import PlayerEmailUpdatePage from './components/Players/PlayerEmailUpdatePage';
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -66,7 +68,12 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <ToastProvider>
-        <AppContent />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/email-updates/:token" element={<PlayerEmailUpdatePage />} />
+            <Route path="*" element={<AppContent />} />
+          </Routes>
+        </BrowserRouter>
       </ToastProvider>
     </AuthProvider>
   );

@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const { runQuery, getQuery, allQuery } = require('../database/postgres-adapter');
 const { authenticateToken } = require('../middleware/auth');
+const { sendGameResultEmail } = require('../notifications/email');
 
 const router = express.Router();
 
@@ -214,7 +215,7 @@ router.post('/', [
           total_games = total_games + 1,
           total_buyins = total_buyins + ?,
           total_cashouts = total_cashouts + ?,
-          updated_at = NOW()
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [profit, player.buyin, player.cashout, player.player_id]);
     }
@@ -228,6 +229,24 @@ router.post('/', [
     `, [gameId]);
 
     res.status(201).json(newGame);
+
+    // Send email notifications (fire-and-forget, never blocks response)
+    for (const player of players) {
+      try {
+        const playerData = await getQuery('SELECT name, email FROM players WHERE id = ?', [player.player_id]);
+        if (playerData && playerData.email) {
+          const profit = parseFloat(player.cashout) - parseFloat(player.buyin);
+          sendGameResultEmail(playerData.email, playerData.name, {
+            buyin: player.buyin,
+            cashout: player.cashout,
+            profit,
+            date,
+          }).catch(() => {});
+        }
+      } catch (emailErr) {
+        // Silently ignore email errors
+      }
+    }
   } catch (error) {
     console.error('Error creating game:', error);
     res.status(500).json({ error: 'Failed to create game' });
@@ -320,7 +339,7 @@ router.delete('/:id', async (req, res) => {
           total_games = total_games - 1,
           total_buyins = total_buyins - ?,
           total_cashouts = total_cashouts - ?,
-          updated_at = NOW()
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [player.profit, player.buyin, player.cashout, player.player_id]);
     }
@@ -411,7 +430,7 @@ router.post('/:gameId/players', [
           total_games = total_games + 1,
           total_buyins = total_buyins + ?,
           total_cashouts = total_cashouts + ?,
-          updated_at = NOW()
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [profit, bin, cout, pid]);
 
@@ -438,7 +457,7 @@ router.post('/:gameId/players', [
 
     await runQuery(`
       UPDATE games 
-      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = NOW()
+      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
 
@@ -456,6 +475,24 @@ router.post('/:gameId/players', [
       players: results.filter(r => !r.error),
       errors: playerErrors.length > 0 ? playerErrors : undefined
     });
+
+    // Send email notifications for successfully added players (fire-and-forget)
+    const game = await getQuery('SELECT date FROM games WHERE id = ?', [gameId]);
+    for (const result of results.filter(r => !r.error)) {
+      try {
+        const playerData = await getQuery('SELECT email FROM players WHERE id = ?', [result.player_id]);
+        if (playerData && playerData.email) {
+          sendGameResultEmail(playerData.email, result.player_name, {
+            buyin: result.buyin,
+            cashout: result.cashout,
+            profit: result.profit,
+            date: game?.date || new Date().toISOString(),
+          }).catch(() => {});
+        }
+      } catch (emailErr) {
+        // Silently ignore email errors
+      }
+    }
   } catch (error) {
     console.error('Error adding player to game:', error);
     res.status(500).json({ error: 'Failed to add player to game' });
@@ -507,7 +544,7 @@ router.put('/:gameId/players/:playerId', [
 
     await runQuery(`
       UPDATE games 
-      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = NOW()
+      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
 
@@ -526,7 +563,7 @@ router.put('/:gameId/players/:playerId', [
         net_profit = net_profit + ?,
         total_buyins = total_buyins + ?,
         total_cashouts = total_cashouts + ?,
-        updated_at = NOW()
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
 

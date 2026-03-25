@@ -108,17 +108,17 @@ class ApiService {
     return this.request<Player>(`/players/${id}`);
   }
 
-  async createPlayer(name: string): Promise<Player> {
+  async createPlayer(name: string, email?: string): Promise<Player> {
     return this.request<Player>('/players', {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...(email ? { email } : {}) }),
     });
   }
 
-  async updatePlayer(id: string, name: string): Promise<Player> {
+  async updatePlayer(id: string, name: string, email?: string): Promise<Player> {
     return this.request<Player>(`/players/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...(email !== undefined ? { email } : {}) }),
     });
   }
 
