@@ -2,11 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-interface LoginFormProps {
-  onSwitchToRegister: () => void;
-}
-
-const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
+const LoginForm: React.FC = () => {
   const { login, error, clearError } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
@@ -115,19 +111,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
               )}
             </button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <button
-                onClick={onSwitchToRegister}
-                className="text-primary-600 hover:text-primary-700 font-medium"
-                disabled={isLoading}
-              >
-                Sign up
-              </button>
-            </p>
-          </div>
         </div>
       </div>
     </div>

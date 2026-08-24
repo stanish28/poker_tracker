@@ -51,6 +51,14 @@ class ApiService {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+
+        // The server enforces auth on every data endpoint, and tokens expire
+        // after 7 days. Drop the dead token so the app falls back to the login
+        // screen instead of surfacing repeated failures.
+        if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+          this.setToken(null);
+        }
+
         throw new ApiError(
           response.status,
           errorData.error || errorData.message || 'Request failed',
@@ -88,12 +96,6 @@ class ApiService {
     });
   }
 
-  async register(username: string, email: string, password: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ username, email, password }),
-    });
-  }
 
   async verifyToken(): Promise<{ user: User }> {
     return this.request<{ user: User }>('/auth/verify');

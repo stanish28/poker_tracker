@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import LoginForm from './components/Auth/LoginForm';
-import RegisterForm from './components/Auth/RegisterForm';
 import Navigation from './components/Layout/Navigation';
 import LoadingSpinner from './components/Layout/LoadingSpinner';
 import ToastContainer from './components/Layout/ToastContainer';
@@ -16,7 +15,6 @@ import PlayerEmailUpdatePage from './components/Players/PlayerEmailUpdatePage';
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isLoginMode, setIsLoginMode] = useState(true);
 
   if (isLoading) {
     return (
@@ -29,11 +27,7 @@ const AppContent: React.FC = () => {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        {isLoginMode ? (
-          <LoginForm onSwitchToRegister={() => setIsLoginMode(false)} />
-        ) : (
-          <RegisterForm onSwitchToLogin={() => setIsLoginMode(true)} />
-        )}
+        <LoginForm />
       </div>
     );
   }

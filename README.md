@@ -1,6 +1,6 @@
 # Poker Tracker v2
 
-A full-stack web application for tracking poker games, player statistics, and financial settlements. Built with React/TypeScript frontend and Node.js/Express backend with SQLite database.
+A full-stack web application for tracking poker games, player statistics, and financial settlements. Built with a React/TypeScript frontend and a Node.js/Express backend (Postgres in production, SQLite for local development).
 
 ## 🚀 Features
 
@@ -23,10 +23,22 @@ A full-stack web application for tracking poker games, player statistics, and fi
 - **HTTP Client**: Custom API service layer
 
 ### Backend (Node.js + Express)
+
+There are currently **two server implementations**, and it matters which one you
+are editing:
+
+| | `server/minimal.js` | `server/index.js` + `server/routes/` |
+|---|---|---|
+| Used by | **Production** (Vercel) | Local development only |
+| Database | Postgres via `DATABASE_URL` | SQLite (`server/database/poker_tracker.db`) |
+| Shape | One file, all routes | Express routers per resource |
+
+`vercel.json` maps every `/api/*` request to `server/minimal.js`, so a change to
+`server/routes/` has no effect on the deployed site. Consolidating these is
+tracked in the roadmap below.
+
 - **Runtime**: Node.js with Express 4.18.2
-- **Database**: SQLite3 5.1.6 with custom database layer
 - **Authentication**: JWT tokens with bcryptjs password hashing
-- **Security**: Helmet, CORS, rate limiting, input validation
 - **Port**: 5001 (configurable via environment)
 
 ### Database Schema
@@ -76,13 +88,22 @@ A full-stack web application for tracking poker games, player statistics, and fi
 
 ### Environment Variables
 
-Create a `.env` file in the `server` directory:
+Create a `.env` file in the `server` directory (see `server/env.example`):
 
 ```env
 PORT=5001
-JWT_SECRET=your_jwt_secret_key_here
 NODE_ENV=development
+
+# Required. The server exits on startup if this is missing, so that it can never
+# fall back to a default secret and serve an unauthenticated API.
+JWT_SECRET=<openssl rand -hex 32>
+
+# Production only (Postgres). Leave unset locally to use SQLite.
+DATABASE_URL=
 ```
+
+On Vercel these live in **Project → Settings → Environment Variables**. Changing
+`JWT_SECRET` invalidates every issued token, so everyone signs in again.
 
 ## 🐳 Production Deployment
 
@@ -125,10 +146,17 @@ NODE_ENV=development
 
 ## 📊 API Endpoints
 
+All endpoints below require an `Authorization: Bearer <token>` header, except
+`/api/health`, `/api/auth/login`, and `/api/auth/verify`. Requests without a
+valid token get `401`.
+
 ### Authentication
-- `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login user
 - `GET /api/auth/verify` - Verify JWT token
+
+Registration is closed: `POST /api/auth/register` was removed so that the auth
+requirement cannot be sidestepped by signing up. New accounts are provisioned
+directly in the database.
 
 ### Players
 - `GET /api/players` - Get all players
@@ -160,13 +188,16 @@ NODE_ENV=development
 
 ## 🔒 Security Features
 
-- **JWT Authentication**: Secure token-based authentication
-- **Password Hashing**: bcryptjs for password security
-- **Input Validation**: express-validator for request validation
-- **SQL Injection Protection**: Parameterized queries
-- **CORS Configuration**: Cross-origin resource sharing
-- **Rate Limiting**: Request throttling to prevent abuse
-- **Security Headers**: Helmet for security headers
+- **JWT Authentication**: enforced by a single fail-closed gate in
+  `server/minimal.js`. Routes are protected by default; exposing one publicly
+  means adding it to `PUBLIC_PATHS` deliberately.
+- **No fallback secret**: the server refuses to start without `JWT_SECRET`
+- **Closed registration**: no self-service account creation
+- **Password Hashing**: bcryptjs
+- **SQL Injection Protection**: parameterized queries
+
+Applied to the dev server (`server/index.js`) but **not** to `minimal.js`:
+Helmet, CORS, express-validator, and rate limiting.
 
 ## 📱 Responsive Design
 
@@ -206,7 +237,8 @@ If you have any questions or need help, please open an issue in the repository.
 
 ## 🎯 Roadmap
 
-- [ ] Player performance charts and analytics
+- [x] Player performance charts and analytics (recharts; `PlayerPerformanceModal`)
+- [ ] Consolidate the two server implementations onto one codebase
 - [ ] Game history export functionality
 - [ ] Multi-user support with user-specific data
 - [ ] Real-time notifications

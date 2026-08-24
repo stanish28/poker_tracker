@@ -19,7 +19,6 @@ async function getDbPool() {
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
       });
-      console.log('✅ Database pool created');
       
       // Initialize database tables if they don't exist
       await initializeDatabase();
@@ -32,7 +31,6 @@ async function getDbPool() {
 
 async function initializeDatabase() {
   try {
-    console.log('🔄 Initializing database tables...');
     
     // Create users table if it doesn't exist
     await queryDatabase(`
@@ -52,7 +50,6 @@ async function initializeDatabase() {
       console.warn('⚠️ players.email migration skipped:', e?.message || e);
     }
     
-    console.log('✅ Database tables initialized');
   } catch (error) {
     console.error('❌ Failed to initialize database:', error);
   }
@@ -105,6 +102,44 @@ async function queryDatabase(sql, params = []) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Authentication gate
+//
+// Fails closed: every route defined below requires a valid JWT unless its exact
+// path is listed in PUBLIC_PATHS. A new endpoint is therefore protected by
+// default -- opting out has to be deliberate.
+// ---------------------------------------------------------------------------
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  // Deliberately no fallback value. This repo is public, so a hardcoded default
+  // would let anyone forge a valid token and defeat the gate below.
+  throw new Error('JWT_SECRET is not set; refusing to serve an unauthenticated API.');
+}
+
+const PUBLIC_PATHS = new Set([
+  '/api/health',
+  '/api/auth/login',
+  '/api/auth/verify'
+]);
+
+app.use((req, res, next) => {
+  if (PUBLIC_PATHS.has(req.path)) return next();
+
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    req.user = jwt.verify(authHeader.substring(7), JWT_SECRET);
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -115,175 +150,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Database test endpoint
-app.get('/api/db-test', async (req, res) => {
-  try {
-    console.log('🧪 DB Test endpoint called');
-    
-    // Test direct database connection
-    const players = await queryDatabase('SELECT COUNT(*) as count FROM players');
-    const games = await queryDatabase('SELECT COUNT(*) as count FROM games');
-    
-    if (players && games) {
-      console.log('🧪 Players count:', players[0]?.count || 0);
-      console.log('🧪 Games count:', games[0]?.count || 0);
-      
-      res.json({
-        status: 'OK',
-        database_working: true,
-        players_count: players[0]?.count || 0,
-        games_count: games[0]?.count || 0
-      });
-    } else {
-      res.json({
-        status: 'ERROR',
-        database_working: false,
-        error: 'Failed to query database'
-      });
-    }
-  } catch (error) {
-    console.error('🧪 DB Test error:', error);
-    res.json({
-      status: 'ERROR',
-      database_working: false,
-      error: error.message
-    });
-  }
-});
-
-// Database schema debug endpoint
-app.get('/api/db-schema', async (req, res) => {
-  try {
-    console.log('🔍 Database schema debug endpoint called');
-    
-    // Get table names
-    const tables = await queryDatabase(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      ORDER BY table_name
-    `);
-    
-    // Get column info for key tables
-    const gamePlayersColumns = await queryDatabase(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'game_players' 
-      ORDER BY ordinal_position
-    `);
-    
-    const gamesColumns = await queryDatabase(`
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name = 'games' 
-      ORDER BY ordinal_position
-    `);
-    
-    console.log('🔍 Tables found:', tables);
-    console.log('🔍 Game players columns:', gamePlayersColumns);
-    console.log('🔍 Games columns:', gamesColumns);
-    
-    res.json({
-      status: 'OK',
-      tables: tables || [],
-      game_players_columns: gamePlayersColumns || [],
-      games_columns: gamesColumns || []
-    });
-  } catch (error) {
-    console.error('🔍 Database schema debug error:', error);
-    res.json({
-      status: 'ERROR',
-      error: error.message
-    });
-  }
-});
-
-// Games debug endpoint
-app.get('/api/games-debug', async (req, res) => {
-  try {
-    console.log('🎮 Games debug endpoint called');
-    
-    // Test different queries to see what's in the games table
-    const countResult = await queryDatabase('SELECT COUNT(*) as count FROM games');
-    const allGames = await queryDatabase('SELECT * FROM games LIMIT 5');
-    const simpleQuery = await queryDatabase('SELECT id, date FROM games LIMIT 5');
-    
-    console.log('🎮 Count result:', countResult);
-    console.log('🎮 All games result:', allGames);
-    console.log('🎮 Simple query result:', simpleQuery);
-    
-    res.json({
-      status: 'OK',
-      count_result: countResult,
-      all_games: allGames || [],
-      simple_query: simpleQuery || [],
-      count: countResult?.[0]?.count || 0
-    });
-  } catch (error) {
-    console.error('🎮 Games debug error:', error);
-    res.json({
-      status: 'ERROR',
-      error: error.message
-    });
-  }
-});
-
-// Authentication endpoints
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
-    
-    if (!username || !email || !password) {
-      return res.status(400).json({ error: 'Username, email, and password are required' });
-    }
-    
-    if (username.length < 3) {
-      return res.status(400).json({ error: 'Username must be at least 3 characters' });
-    }
-    
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
-    
-    // Check if user already exists
-    const existingUser = await queryDatabase(
-      'SELECT id FROM users WHERE username = $1 OR email = $2',
-      [username, email]
-    );
-    
-    if (existingUser && existingUser.length > 0) {
-      return res.status(400).json({ error: 'Username or email already exists' });
-    }
-    
-    // Hash password (simple implementation for minimal server)
-    const bcrypt = require('bcryptjs');
-    const passwordHash = await bcrypt.hash(password, 12);
-    
-    // Create user
-    const userId = require('crypto').randomUUID();
-    await queryDatabase(
-      'INSERT INTO users (id, username, email, password_hash, created_at) VALUES ($1, $2, $3, $4, NOW())',
-      [userId, username, email, passwordHash]
-    );
-    
-    // Generate JWT token
-    const jwt = require('jsonwebtoken');
-    const token = jwt.sign(
-      { userId },
-      process.env.JWT_SECRET || 'fallback_secret_for_minimal_server',
-      { expiresIn: '7d' }
-    );
-    
-    res.status(201).json({
-      message: 'User created successfully',
-      token,
-      user: { id: userId, username, email }
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Failed to create user' });
-  }
-});
+// Registration is closed: accounts are provisioned directly in the database.
+// POST /api/auth/register was removed so the authentication gate below cannot
+// be bypassed by simply signing up for a new account.
 
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -311,10 +180,9 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     // Generate JWT token
-    const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { userId: user[0].id },
-      process.env.JWT_SECRET || 'fallback_secret_for_minimal_server',
+      JWT_SECRET,
       { expiresIn: '7d' }
     );
     
@@ -339,8 +207,7 @@ app.get('/api/auth/verify', async (req, res) => {
     const token = authHeader.substring(7);
     
     // Verify JWT token
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_for_minimal_server');
+    const decoded = jwt.verify(token, JWT_SECRET);
     
     // Get user details
     const user = await queryDatabase(
@@ -367,7 +234,6 @@ app.put('/api/players/:id', async (req, res) => {
   try {
     const playerId = req.params.id;
     const { name, email } = req.body;
-    console.log('👥 Update player endpoint called for player:', playerId, 'new name:', name);
     
     if (!name || name.trim() === '') {
       return res.status(400).json({ error: 'Player name is required' });
@@ -392,7 +258,6 @@ app.put('/api/players/:id', async (req, res) => {
       return res.status(404).json({ error: 'Player not found' });
     }
     
-    console.log('👥 Player updated successfully');
     res.json(row);
   } catch (error) {
     console.error('👥 Error updating player:', error);
@@ -403,7 +268,6 @@ app.put('/api/players/:id', async (req, res) => {
 // Recalculate all player statistics from game_players table
 app.post('/api/players/recalculate-stats', async (req, res) => {
   try {
-    console.log('🔄 Recalculating all player statistics...');
     
     // Get all players
     const players = await queryDatabase(`SELECT id, name FROM players`);
@@ -454,7 +318,6 @@ app.post('/api/players/recalculate-stats', async (req, res) => {
       });
     }
     
-    console.log('🔄 Successfully recalculated stats for', updatedCount, 'players');
     res.json({ 
       message: `Successfully recalculated statistics for ${updatedCount} players`,
       updated: updatedCount,
@@ -470,7 +333,6 @@ app.post('/api/players/recalculate-stats', async (req, res) => {
 app.post('/api/players/:id/recalculate-stats', async (req, res) => {
   try {
     const playerId = req.params.id;
-    console.log('🔄 Recalculating stats for player:', playerId);
     
     // Check if player exists
     const player = await queryDatabase(`SELECT id, name FROM players WHERE id = $1`, [playerId]);
@@ -505,7 +367,6 @@ app.post('/api/players/:id/recalculate-stats', async (req, res) => {
       WHERE id = $5
     `, [netProfit, totalGames, totalBuyins, totalCashouts, playerId]);
     
-    console.log('🔄 Successfully recalculated stats for player:', player[0].name);
     res.json({ 
       message: `Successfully recalculated statistics for ${player[0].name}`,
       player: {
@@ -527,7 +388,6 @@ app.post('/api/players/:id/recalculate-stats', async (req, res) => {
 app.delete('/api/players/:id', async (req, res) => {
   try {
     const playerId = req.params.id;
-    console.log('👥 Delete player endpoint called for player:', playerId);
     
     // Check if player has game records
     const gameRecords = await queryDatabase(`
@@ -548,7 +408,6 @@ app.delete('/api/players/:id', async (req, res) => {
       WHERE id = $1
     `, [playerId]);
     
-    console.log('👥 Player deleted successfully');
     res.json({ message: 'Player deleted successfully' });
   } catch (error) {
     console.error('👥 Error deleting player:', error);
@@ -597,7 +456,6 @@ app.post('/api/players', async (req, res) => {
 // Players endpoints (real data with fallback)
 app.get('/api/players', async (req, res) => {
   try {
-    console.log('👥 Players endpoint called');
     // Try to get real data from database
     const players = await queryDatabase(`
       SELECT 
@@ -607,7 +465,6 @@ app.get('/api/players', async (req, res) => {
     `);
     
     if (players && players.length > 0) {
-      console.log('👥 Found', players.length, 'players in database');
       res.json(players);
     } else {
       // Fallback to mock data - using your actual player names
@@ -764,7 +621,6 @@ app.get('/api/players/:id/performance', async (req, res) => {
 app.get('/api/players/:id/net-profit', async (req, res) => {
   try {
     const playerId = req.params.id;
-    console.log('💰 Individual net-profit endpoint called for player:', playerId);
     
     // Get basic player info
     const player = await queryDatabase(`
@@ -833,7 +689,6 @@ app.get('/api/players/:id/net-profit', async (req, res) => {
 
 app.get('/api/players/net-profit/bulk', async (req, res) => {
   try {
-    console.log('💰 Net-profit bulk endpoint called');
     
     // Get all players
     const players = await queryDatabase(`
@@ -852,7 +707,6 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
     `);
 
     if (players && players.length > 0) {
-      console.log('💰 Found', players.length, 'players and', settlements?.length || 0, 'settlements');
 
       // Group settlements by player
       const playerSettlements = {};
@@ -924,7 +778,6 @@ app.get('/api/players/net-profit/bulk', async (req, res) => {
 app.delete('/api/games/:id', async (req, res) => {
   try {
     const gameId = req.params.id;
-    console.log('🎮 Delete game endpoint called for game:', gameId);
     
     // First, delete all game_players records for this game
     await queryDatabase(`
@@ -932,7 +785,6 @@ app.delete('/api/games/:id', async (req, res) => {
       WHERE game_id = $1
     `, [gameId]);
     
-    console.log('🎮 Deleted game players for game:', gameId);
     
     // Then delete the game itself
     await queryDatabase(`
@@ -940,7 +792,6 @@ app.delete('/api/games/:id', async (req, res) => {
       WHERE id = $1
     `, [gameId]);
     
-    console.log('🎮 Game deleted successfully:', gameId);
     res.json({ message: 'Game deleted successfully' });
   } catch (error) {
     console.error('🎮 Error deleting game:', error);
@@ -952,7 +803,6 @@ app.delete('/api/games/:id', async (req, res) => {
 app.get('/api/games/:gameId/players', async (req, res) => {
   try {
     const gameId = req.params.gameId;
-    console.log('🎮 Game players endpoint called for game:', gameId);
     
     // Get game player details with correct column names
     const gamePlayers = await queryDatabase(`
@@ -969,10 +819,8 @@ app.get('/api/games/:gameId/players', async (req, res) => {
     `, [gameId]);
     
     if (gamePlayers) {
-      console.log('🎮 Found', gamePlayers.length, 'players in game');
       res.json(gamePlayers);
     } else {
-      console.log('🎮 No players found for game');
       res.json([]);
     }
   } catch (error) {
@@ -986,8 +834,6 @@ app.post('/api/games/:gameId/players', async (req, res) => {
   try {
     const gameId = req.params.gameId;
     const { players, player_id, buyin, cashout } = req.body;
-    console.log('🎮 Add players to game endpoint called for game:', gameId);
-    console.log('🎮 Request body:', JSON.stringify(req.body));
     
     // Support both array format and single player format
     let playersToAdd = [];
@@ -997,17 +843,14 @@ app.post('/api/games/:gameId/players', async (req, res) => {
       // Legacy single player format
       playersToAdd = [{ player_id, buyin, cashout }];
     } else {
-      console.log('🎮 Error: No players found in request body');
       return res.status(400).json({ error: 'At least one player is required' });
     }
     
-    console.log('🎮 Processing', playersToAdd.length, 'player(s)');
     
     // Add each player to the game
     for (const player of playersToAdd) {
       const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
       
-      console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
       
       await queryDatabase(`
         INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at)
@@ -1043,7 +886,6 @@ app.post('/api/games/:gameId/players', async (req, res) => {
       `, [totalBuyins, totalCashouts, discrepancy.toString(), gameId]);
     }
     
-    console.log('🎮 Players added to game successfully');
     const gd = await queryDatabase('SELECT date FROM games WHERE id = $1', [gameId]);
     const gameDate = gd?.[0]?.date || new Date().toISOString();
 
@@ -1083,7 +925,6 @@ app.delete('/api/games/:gameId/players/:playerId', async (req, res) => {
   try {
     const gameId = req.params.gameId;
     const playerId = req.params.playerId;
-    console.log('🎮 Remove player from game:', playerId, 'from game:', gameId);
     
     // Get the game_player record to reverse statistics
     const gamePlayer = await queryDatabase(
@@ -1136,7 +977,6 @@ app.delete('/api/games/:gameId/players/:playerId', async (req, res) => {
       WHERE id = $4
     `, [totalBuyins, totalCashouts, discrepancy, gameId]);
     
-    console.log('🎮 Player removed from game successfully');
     res.json({ message: 'Player removed from game successfully' });
   } catch (error) {
     console.error('🎮 Error removing player from game:', error);
@@ -1218,29 +1058,10 @@ app.put('/api/games/:gameId/players/:playerId', async (req, res) => {
   }
 });
 
-// Debug endpoint to check raw database values
-app.get('/api/debug/games/:gameId/players/:playerId', async (req, res) => {
-  try {
-    const { gameId, playerId } = req.params;
-    const result = await queryDatabase(
-      'SELECT * FROM game_players WHERE game_id = $1 AND player_id = $2',
-      [gameId, playerId]
-    );
-    res.json({
-      found: result && result.length > 0,
-      data: result && result.length > 0 ? result[0] : null,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Individual game endpoint with players
 app.get('/api/games/:id', async (req, res) => {
   try {
     const gameId = req.params.id;
-    console.log('🎮 Individual game endpoint called for game:', gameId);
     
     // Get game details
     const game = await queryDatabase(`
@@ -1251,7 +1072,6 @@ app.get('/api/games/:id', async (req, res) => {
     `, [gameId]);
     
     if (game && game.length > 0) {
-      console.log('🎮 Found game in database');
       
       // Get game players
       const gamePlayers = await queryDatabase(`
@@ -1276,7 +1096,6 @@ app.get('/api/games/:id', async (req, res) => {
       
       res.json(gameWithPlayers);
     } else {
-      console.log('🎮 Game not found');
       res.status(404).json({ error: 'Game not found' });
     }
   } catch (error) {
@@ -1331,8 +1150,6 @@ app.get('/api/games', async (req, res) => {
 app.post('/api/games', async (req, res) => {
   try {
     const { date, players } = req.body;
-    console.log('🎮 Create game endpoint called with players:', players?.length || 0);
-    console.log('🎮 Request body:', JSON.stringify(req.body, null, 2));
     
     if (!players || players.length === 0) {
       return res.status(400).json({ error: 'At least one player is required' });
@@ -1364,13 +1181,11 @@ app.post('/api/games', async (req, res) => {
       return res.status(500).json({ error: 'Failed to create game' });
     }
     
-    console.log('🎮 Game created with ID:', gameId, 'Totals:', { totalBuyins, totalCashouts, discrepancy });
     
     // Add players to the game
     for (const player of players) {
       const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
       
-      console.log('🎮 Adding player:', player.player_id, 'buyin:', player.buyin, 'cashout:', player.cashout);
       
       const playerResult = await queryDatabase(`
         INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at)
@@ -1385,15 +1200,11 @@ app.post('/api/games', async (req, res) => {
       ]);
       
       if (!playerResult) {
+        // Logged rather than thrown so one bad row cannot fail the whole game.
         console.error('🎮 Failed to add player:', player.player_id);
-        // Don't throw error, just log it and continue
-        // This prevents the entire transaction from failing
-      } else {
-        console.log('🎮 Player added successfully:', player.player_id, 'Result:', playerResult);
       }
     }
     
-    console.log('🎮 Game and players created successfully');
     
     // Return the created game
     const createdGame = await queryDatabase(`
@@ -1443,7 +1254,6 @@ app.put('/api/games/:id', async (req, res) => {
   try {
     const gameId = req.params.id;
     const { date, is_completed } = req.body;
-    console.log('🎮 Update game endpoint called for game:', gameId);
     
     if (!gameId) {
       return res.status(400).json({ error: 'Game ID is required' });
@@ -1481,7 +1291,6 @@ app.put('/api/games/:id', async (req, res) => {
     
     await queryDatabase(updateQuery, updateValues);
     
-    console.log('🎮 Game updated successfully:', gameId);
     
     // Return the updated game
     const updatedGame = await queryDatabase(`
@@ -1504,7 +1313,6 @@ app.put('/api/games/:id', async (req, res) => {
 
 app.get('/api/games/stats/overview', async (req, res) => {
   try {
-    console.log('📊 Games stats endpoint called');
     // Try to get real data from database
     const stats = await queryDatabase(`
       SELECT 
@@ -1514,13 +1322,11 @@ app.get('/api/games/stats/overview', async (req, res) => {
     `);
     
     if (stats && stats.length > 0) {
-      console.log('📊 Found game stats in database:', stats[0]);
       res.json({
         total_games: parseInt(stats[0].total_games),
         total_buyins: stats[0].total_buyins.toString()
       });
     } else {
-      console.log('📊 No game stats found, using mock data');
       // Fallback to mock data
       res.json({
         total_games: 1,
@@ -1537,7 +1343,6 @@ app.get('/api/games/stats/overview', async (req, res) => {
 // Total discrepancy endpoint
 app.get('/api/discrepancy/total', async (req, res) => {
   try {
-    console.log('💰 Total discrepancy endpoint called');
     
     // Get all players and calculate their net profits from game data
     const players = await queryDatabase(`
@@ -1548,7 +1353,6 @@ app.get('/api/discrepancy/total', async (req, res) => {
     `);
 
     if (players && players.length > 0) {
-      console.log('💰 Found', players.length, 'players for discrepancy calculation');
 
       // Calculate net profit for each player from game data
       let totalPositive = 0;
@@ -1699,7 +1503,6 @@ app.put('/api/settlements/:id', async (req, res) => {
   try {
     const settlementId = req.params.id;
     const { amount, date, notes } = req.body;
-    console.log('💰 Update settlement endpoint called for settlement:', settlementId);
     
     if (!settlementId) {
       return res.status(400).json({ error: 'Settlement ID is required' });
@@ -1749,7 +1552,6 @@ app.put('/api/settlements/:id', async (req, res) => {
     
     await queryDatabase(updateQuery, updateValues);
     
-    console.log('💰 Settlement updated successfully:', settlementId);
     
     // Return the updated settlement
     const updatedSettlement = await queryDatabase(`
@@ -1773,7 +1575,6 @@ app.put('/api/settlements/:id', async (req, res) => {
 app.delete('/api/settlements/:id', async (req, res) => {
   try {
     const settlementId = req.params.id;
-    console.log('💰 Delete settlement endpoint called for settlement:', settlementId);
     
     // Check if settlement exists
     const existingSettlement = await queryDatabase('SELECT id FROM settlements WHERE id = $1', [settlementId]);
@@ -1783,7 +1584,6 @@ app.delete('/api/settlements/:id', async (req, res) => {
     
     await queryDatabase('DELETE FROM settlements WHERE id = $1', [settlementId]);
     
-    console.log('💰 Settlement deleted successfully:', settlementId);
     res.json({ message: 'Settlement deleted successfully' });
   } catch (error) {
     console.error('💰 Error deleting settlement:', error);
@@ -1793,7 +1593,6 @@ app.delete('/api/settlements/:id', async (req, res) => {
 
 app.get('/api/settlements/stats/overview', async (req, res) => {
   try {
-    console.log('💰 Settlements stats endpoint called');
     // Try to get real data from database
     const stats = await queryDatabase(`
       SELECT 
@@ -1803,13 +1602,11 @@ app.get('/api/settlements/stats/overview', async (req, res) => {
     `);
     
     if (stats && stats.length > 0) {
-      console.log('💰 Found settlement stats in database:', stats[0]);
       res.json({
         total_settlements: parseInt(stats[0].total_settlements),
         total_amount: stats[0].total_amount.toString()
       });
     } else {
-      console.log('💰 No settlement stats found, using mock data');
       res.json({
         total_settlements: 0,
         total_amount: '0.00'
@@ -1824,7 +1621,6 @@ app.get('/api/settlements/stats/overview', async (req, res) => {
 app.get('/api/settlements/player/:playerId/debts', async (req, res) => {
   try {
     const playerId = req.params.playerId;
-    console.log('💰 Player debts endpoint called for player:', playerId);
     
     // Check if player exists
     const player = await queryDatabase('SELECT id, name FROM players WHERE id = $1', [playerId]);
@@ -1869,8 +1665,8 @@ app.get('/api/settlements/player/:playerId/debts', async (req, res) => {
 });
 
 // Bulk game creation endpoints
-const TextParser = require('./textParser');
-const FuzzyMatcher = require('./fuzzyMatcher');
+const TextParser = require('./utils/textParser');
+const FuzzyMatcher = require('./utils/fuzzyMatcher');
 
 // Initialize utilities
 const textParser = new TextParser();
