@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, Search, X, RefreshCw, LineChart, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiService } from '../../services/api';
+import ExportButton from '../Layout/ExportButton';
 import { useToast } from '../../contexts/ToastContext';
 import { Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
@@ -248,6 +249,7 @@ const Players: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+          <ExportButton dataset="players" />
           <button
             onClick={handleRecalculateStats}
             className="btn btn-secondary btn-md w-full sm:w-auto"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Eye, Edit2, Trash2, CheckCircle, XCircle, FileText, Search, X } from 'lucide-react';
 import { apiService } from '../../services/api';
+import ExportButton from '../Layout/ExportButton';
 import { useToast } from '../../contexts/ToastContext';
 import { Game, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
@@ -172,6 +173,7 @@ const Games: React.FC = () => {
           <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Track poker game sessions and player participation</p>
         </div>
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+          <ExportButton dataset="games" />
           <button
             onClick={handleTextImportGame}
             className="btn btn-secondary btn-md w-full sm:w-auto"

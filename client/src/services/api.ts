@@ -373,6 +373,45 @@ class ApiService {
   async healthCheck(): Promise<{ status: string; timestamp: string; environment: string }> {
     return this.request('/health');
   }
+
+  /**
+   * Download a CSV export.
+   *
+   * This cannot be a plain link: the API requires an Authorization header, and
+   * a browser navigation would not send one. So fetch the file, then hand the
+   * blob to a temporary object URL to trigger the save.
+   */
+  async downloadExport(dataset: 'games' | 'players' | 'settlements'): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/export/${dataset}`, {
+      headers: {
+        ...(this.token && { Authorization: `Bearer ${this.token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) this.setToken(null);
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiError(response.status, errorData.error || 'Export failed', errorData);
+    }
+
+    // Prefer the filename the server chose, so exports stay dated.
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `${dataset}.csv`;
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
 }
 
 export const apiService = new ApiService();

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Eye, Edit2, Trash2, CreditCard, DollarSign } from 'lucide-react';
 import { apiService } from '../../services/api';
+import ExportButton from '../Layout/ExportButton';
 import { useToast } from '../../contexts/ToastContext';
 import { Settlement, Player } from '../../types';
 import LoadingSpinner from '../Layout/LoadingSpinner';
@@ -140,14 +141,17 @@ const Settlements: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Settlements</h1>
           <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Track financial settlements between players</p>
         </div>
-        <button
-          onClick={handleCreateSettlement}
-          className="btn btn-primary btn-md w-full sm:w-auto"
-          disabled={players.length < 2}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Settlement
-        </button>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+          <ExportButton dataset="settlements" />
+          <button
+            onClick={handleCreateSettlement}
+            className="btn btn-primary btn-md w-full sm:w-auto"
+            disabled={players.length < 2}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Settlement
+          </button>
+        </div>
       </div>
 
       {/* Error Message */}
