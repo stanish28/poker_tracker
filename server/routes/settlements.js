@@ -1,280 +1,259 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
-const { v4: uuidv4 } = require('uuid');
-const { runQuery, getQuery, allQuery } = require('../database/postgres-adapter');
-const { authenticateToken } = require('../middleware/auth');
+const { queryDatabase } = require('../db');
 
 const router = express.Router();
 
-// Apply authentication to all routes
-router.use(authenticateToken);
-
-// Get all settlements
+// Settlements endpoints (real data with fallback)
 router.get('/', async (req, res) => {
   try {
-    const settlements = await allQuery(`
+    // Try to get real data from database
+    const settlements = await queryDatabase(`
       SELECT 
-        id, from_player_id, to_player_id, from_player_name, to_player_name,
-        amount, date, notes, created_at
-      FROM settlements 
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
       ORDER BY date DESC, created_at DESC
     `);
-    res.json(settlements);
+    
+    if (settlements) {
+      res.json(settlements);
+    } else {
+      res.json([]);
+    }
   } catch (error) {
-    console.error('Error fetching settlements:', error);
+    console.error('💰 Error fetching settlements:', error);
     res.status(500).json({ error: 'Failed to fetch settlements' });
   }
 });
-
-// Get single settlement
 router.get('/:id', async (req, res) => {
   try {
-    const settlement = await getQuery(`
+    const settlementId = req.params.id;
+    
+    const settlement = await queryDatabase(`
       SELECT 
-        id, from_player_id, to_player_id, from_player_name, to_player_name,
-        amount, date, notes, created_at
-      FROM settlements 
-      WHERE id = ?
-    `, [req.params.id]);
-
-    if (!settlement) {
-      return res.status(404).json({ error: 'Settlement not found' });
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
+      WHERE id = $1
+    `, [settlementId]);
+    
+    if (settlement && settlement.length > 0) {
+      res.json(settlement[0]);
+    } else {
+      res.status(404).json({ error: 'Settlement not found' });
     }
-
-    res.json(settlement);
   } catch (error) {
-    console.error('Error fetching settlement:', error);
+    console.error('💰 Error fetching individual settlement:', error);
     res.status(500).json({ error: 'Failed to fetch settlement' });
   }
 });
-
-// Create new settlement
-router.post('/', [
-  body('from_player_id').notEmpty().withMessage('From player ID is required'),
-  body('to_player_id').notEmpty().withMessage('To player ID is required'),
-  body('amount').isNumeric().withMessage('Amount must be a number'),
-  body('date').isISO8601().withMessage('Valid date is required'),
-  body('notes').optional().isString()
-], async (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     const { from_player_id, to_player_id, amount, date, notes } = req.body;
-
+    
+    if (!from_player_id || !to_player_id || !amount || !date) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
     // Validate players exist
-    const players = await allQuery(
-      'SELECT id, name FROM players WHERE id IN (?, ?)',
+    const players = await queryDatabase(
+      'SELECT id, name FROM players WHERE id IN ($1, $2)',
       [from_player_id, to_player_id]
     );
-
-    if (players.length !== 2) {
+    
+    if (!players || players.length !== 2) {
       return res.status(400).json({ error: 'One or more players not found' });
     }
-
+    
     const fromPlayer = players.find(p => p.id === from_player_id);
     const toPlayer = players.find(p => p.id === to_player_id);
-
+    
     if (!fromPlayer || !toPlayer) {
       return res.status(400).json({ error: 'Invalid player selection' });
     }
-
-    const settlementId = uuidv4();
-    await runQuery(`
+    
+    const settlementId = require('crypto').randomUUID();
+    await queryDatabase(`
       INSERT INTO settlements (
-        id, from_player_id, to_player_id, from_player_name, to_player_name,
-        amount, date, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      settlementId, from_player_id, to_player_id, 
-      fromPlayer.name, toPlayer.name, amount, date, notes || null
-    ]);
-
-    const newSettlement = await getQuery(`
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+    `, [settlementId, from_player_id, to_player_id, fromPlayer.name, toPlayer.name, amount, date, notes || null]);
+    
+    // Return the created settlement
+    const createdSettlement = await queryDatabase(`
       SELECT 
-        id, from_player_id, to_player_id, from_player_name, to_player_name,
-        amount, date, notes, created_at
-      FROM settlements 
-      WHERE id = ?
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
+      WHERE id = $1
     `, [settlementId]);
-
-    res.status(201).json(newSettlement);
+    
+    if (createdSettlement && createdSettlement.length > 0) {
+      res.status(201).json(createdSettlement[0]);
+    } else {
+      res.status(201).json({ id: settlementId, message: 'Settlement created successfully' });
+    }
   } catch (error) {
-    console.error('Error creating settlement:', error);
+    console.error('💰 Error creating settlement:', error);
     res.status(500).json({ error: 'Failed to create settlement' });
   }
 });
-
-// Update settlement
-router.put('/:id', [
-  body('amount').optional().isNumeric().withMessage('Amount must be a number'),
-  body('date').optional().isISO8601().withMessage('Valid date is required'),
-  body('notes').optional().isString()
-], async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     const settlementId = req.params.id;
     const { amount, date, notes } = req.body;
-
+    
+    if (!settlementId) {
+      return res.status(400).json({ error: 'Settlement ID is required' });
+    }
+    
     // Check if settlement exists
-    const existingSettlement = await getQuery('SELECT id FROM settlements WHERE id = ?', [settlementId]);
-    if (!existingSettlement) {
+    const existingSettlement = await queryDatabase('SELECT id FROM settlements WHERE id = $1', [settlementId]);
+    if (!existingSettlement || existingSettlement.length === 0) {
       return res.status(404).json({ error: 'Settlement not found' });
     }
-
+    
+    // Update settlement
     const updateFields = [];
     const updateValues = [];
-
+    let paramCount = 1;
+    
     if (amount !== undefined) {
-      updateFields.push('amount = ?');
+      updateFields.push(`amount = $${paramCount}`);
       updateValues.push(amount);
+      paramCount++;
     }
-
+    
     if (date !== undefined) {
-      updateFields.push('date = ?');
+      updateFields.push(`date = $${paramCount}`);
       updateValues.push(date);
+      paramCount++;
     }
-
+    
     if (notes !== undefined) {
-      updateFields.push('notes = ?');
+      updateFields.push(`notes = $${paramCount}`);
       updateValues.push(notes);
+      paramCount++;
     }
-
+    
     if (updateFields.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-
+    
+    updateFields.push(`updated_at = NOW()`);
     updateValues.push(settlementId);
-
-    await runQuery(
-      `UPDATE settlements SET ${updateFields.join(', ')} WHERE id = ?`,
-      updateValues
-    );
-
-    const updatedSettlement = await getQuery(`
+    
+    const updateQuery = `
+      UPDATE settlements 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+    `;
+    
+    await queryDatabase(updateQuery, updateValues);
+    
+    
+    // Return the updated settlement
+    const updatedSettlement = await queryDatabase(`
       SELECT 
-        id, from_player_id, to_player_id, from_player_name, to_player_name,
-        amount, date, notes, created_at
-      FROM settlements 
-      WHERE id = ?
+        id, from_player_id, to_player_id, from_player_name, to_player_name, amount, date, notes, created_at
+      FROM settlements
+      WHERE id = $1
     `, [settlementId]);
-
-    res.json(updatedSettlement);
+    
+    if (updatedSettlement && updatedSettlement.length > 0) {
+      res.json(updatedSettlement[0]);
+    } else {
+      res.status(404).json({ error: 'Settlement not found' });
+    }
   } catch (error) {
-    console.error('Error updating settlement:', error);
+    console.error('💰 Error updating settlement:', error);
     res.status(500).json({ error: 'Failed to update settlement' });
   }
 });
-
-// Delete settlement
 router.delete('/:id', async (req, res) => {
   try {
     const settlementId = req.params.id;
-
+    
     // Check if settlement exists
-    const existingSettlement = await getQuery('SELECT id FROM settlements WHERE id = ?', [settlementId]);
-    if (!existingSettlement) {
+    const existingSettlement = await queryDatabase('SELECT id FROM settlements WHERE id = $1', [settlementId]);
+    if (!existingSettlement || existingSettlement.length === 0) {
       return res.status(404).json({ error: 'Settlement not found' });
     }
-
-    await runQuery('DELETE FROM settlements WHERE id = ?', [settlementId]);
-
+    
+    await queryDatabase('DELETE FROM settlements WHERE id = $1', [settlementId]);
+    
     res.json({ message: 'Settlement deleted successfully' });
   } catch (error) {
-    console.error('Error deleting settlement:', error);
+    console.error('💰 Error deleting settlement:', error);
     res.status(500).json({ error: 'Failed to delete settlement' });
   }
 });
-
-// Get settlement statistics
 router.get('/stats/overview', async (req, res) => {
   try {
-    const stats = await getQuery(`
+    // Try to get real data from database
+    const stats = await queryDatabase(`
       SELECT 
         COUNT(*) as total_settlements,
-        SUM(amount) as total_amount,
-        AVG(amount) as avg_amount,
-        MAX(date) as last_settlement_date
+        COALESCE(SUM(CAST(amount AS DECIMAL)), 0) as total_amount
       FROM settlements
     `);
-
-    const recentSettlements = await allQuery(`
-      SELECT 
-        id, from_player_name, to_player_name, amount, date, notes
-      FROM settlements
-      ORDER BY date DESC
-      LIMIT 5
-    `);
-
-    // Get debt summary - simplified for PostgreSQL compatibility
-    const debtSummary = await allQuery(`
-      SELECT 
-        p.name,
-        COALESCE(SUM(CASE WHEN s.from_player_id = p.id THEN -s.amount ELSE s.amount END), 0) as net_debt
-      FROM players p
-      LEFT JOIN settlements s ON (p.id = s.from_player_id OR p.id = s.to_player_id)
-      GROUP BY p.id, p.name
-      ORDER BY p.name
-    `);
-
-    res.json({ ...stats, recentSettlements, debtSummary });
+    
+    if (stats && stats.length > 0) {
+      res.json({
+        total_settlements: parseInt(stats[0].total_settlements),
+        total_amount: stats[0].total_amount.toString()
+      });
+    } else {
+      res.json({
+        total_settlements: 0,
+        total_amount: '0.00'
+      });
+    }
   } catch (error) {
-    console.error('Error fetching settlement stats:', error);
-    res.status(500).json({ error: 'Failed to fetch settlement statistics' });
+    console.error('💰 Error fetching settlement stats:', error);
+    res.status(500).json({ error: 'Failed to fetch settlement stats' });
   }
 });
-
-// Get player debt summary
 router.get('/player/:playerId/debts', async (req, res) => {
   try {
     const playerId = req.params.playerId;
-
+    
     // Check if player exists
-    const player = await getQuery('SELECT id, name FROM players WHERE id = ?', [playerId]);
-    if (!player) {
+    const player = await queryDatabase('SELECT id, name FROM players WHERE id = $1', [playerId]);
+    if (!player || player.length === 0) {
       return res.status(404).json({ error: 'Player not found' });
     }
-
+    
     // Get debts owed by this player
-    const debtsOwed = await allQuery(`
+    const debtsOwed = await queryDatabase(`
       SELECT 
         s.id, s.to_player_name, s.amount, s.date, s.notes
       FROM settlements s
-      WHERE s.from_player_id = ?
+      WHERE s.from_player_id = $1
       ORDER BY s.date DESC
     `, [playerId]);
-
+    
     // Get debts owed to this player
-    const debtsOwedTo = await allQuery(`
+    const debtsOwedTo = await queryDatabase(`
       SELECT 
         s.id, s.from_player_name, s.amount, s.date, s.notes
       FROM settlements s
-      WHERE s.to_player_id = ?
+      WHERE s.to_player_id = $1
       ORDER BY s.date DESC
     `, [playerId]);
-
-    const totalOwed = debtsOwed.reduce((sum, debt) => sum + debt.amount, 0);
-    const totalOwedTo = debtsOwedTo.reduce((sum, debt) => sum + debt.amount, 0);
+    
+    const totalOwed = (debtsOwed || []).reduce((sum, debt) => sum + parseFloat(debt.amount || 0), 0);
+    const totalOwedTo = (debtsOwedTo || []).reduce((sum, debt) => sum + parseFloat(debt.amount || 0), 0);
     const netDebt = totalOwedTo - totalOwed;
-
+    
     res.json({
-      player: { id: player.id, name: player.name },
-      debtsOwed,
-      debtsOwedTo,
+      player: { id: player[0].id, name: player[0].name },
+      debtsOwed: debtsOwed || [],
+      debtsOwedTo: debtsOwedTo || [],
       totalOwed,
       totalOwedTo,
       netDebt
     });
   } catch (error) {
-    console.error('Error fetching player debts:', error);
+    console.error('💰 Error fetching player debts:', error);
     res.status(500).json({ error: 'Failed to fetch player debt information' });
   }
 });
-
 module.exports = router;

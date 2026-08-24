@@ -1,29 +1,39 @@
+// ---------------------------------------------------------------------------
+// Authentication gate
+//
+// Fails closed: every route defined below requires a valid JWT unless its exact
+// path is listed in PUBLIC_PATHS. A new endpoint is therefore protected by
+// default -- opting out has to be deliberate.
+// ---------------------------------------------------------------------------
 const jwt = require('jsonwebtoken');
-const { getQuery } = require('../database/postgres-adapter');
 
-const authenticateToken = async (req, res, next) => {
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  // Deliberately no fallback value. This repo is public, so a hardcoded default
+  // would let anyone forge a valid token and defeat the gate below.
+  throw new Error('JWT_SECRET is not set; refusing to serve an unauthenticated API.');
+}
+
+const PUBLIC_PATHS = new Set([
+  '/api/health',
+  '/api/auth/login',
+  '/api/auth/verify'
+]);
+
+const authGate = (req, res, next) => {
+  if (PUBLIC_PATHS.has(req.path)) return next();
+
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Verify user still exists
-    const user = await getQuery('SELECT id, username, email FROM users WHERE id = ?', [decoded.userId]);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid token - user not found' });
-    }
-
-    req.user = user;
+    req.user = jwt.verify(authHeader.substring(7), JWT_SECRET);
     next();
   } catch (error) {
-    console.error('Token verification error:', error);
-    return res.status(403).json({ error: 'Invalid or expired token' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
 
-module.exports = { authenticateToken };
+module.exports = { authGate, JWT_SECRET, PUBLIC_PATHS };

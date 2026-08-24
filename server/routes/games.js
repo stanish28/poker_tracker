@@ -1,383 +1,71 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
-const { v4: uuidv4 } = require('uuid');
-const { runQuery, getQuery, allQuery } = require('../database/postgres-adapter');
-const { authenticateToken } = require('../middleware/auth');
+const { queryDatabase } = require('../db');
 const { sendGameResultEmail } = require('../notifications/email');
 
 const router = express.Router();
 
-// Apply authentication to all routes
-router.use(authenticateToken);
-
-// Get all games (with optional player filter)
-router.get('/', async (req, res) => {
-  try {
-    console.log('🎯 BACKEND DEBUG: Games endpoint function called!');
-    console.log('  Request URL:', req.url);
-    console.log('  Request method:', req.method);
-    console.log('  Timestamp:', new Date().toISOString());
-    
-    const { playerId } = req.query;
-    console.log('Games endpoint called with playerId:', playerId);
-    console.log('Full query object:', req.query);
-    console.log('Request URL:', req.url);
-    console.log('Backend version: 1.2.3 - Updated at:', new Date().toISOString());
-    
-    let query;
-    let params = [];
-    
-    if (playerId) {
-      // Filter games by player ID - even simpler approach
-      query = `
-        SELECT DISTINCT
-          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
-          g.is_completed, g.created_at, g.updated_at,
-          (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
-        FROM games g
-        INNER JOIN game_players gp ON g.id = gp.game_id
-        WHERE gp.player_id = ?
-        ORDER BY g.date DESC, g.created_at DESC
-      `;
-      params = [playerId];
-      console.log('Using filtered query for playerId:', playerId);
-    } else {
-      // Get all games
-      query = `
-        SELECT 
-          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
-          g.is_completed, g.created_at, g.updated_at,
-          COUNT(gp.player_id) as player_count
-        FROM games g
-        LEFT JOIN game_players gp ON g.id = gp.game_id
-        GROUP BY g.id
-        ORDER BY g.date DESC, g.created_at DESC
-      `;
-      console.log('Using all games query');
-    }
-    
-    console.log('Executing query:', query);
-    console.log('With params:', params);
-    const games = await allQuery(query, params);
-    console.log(`Returning ${games.length} games for playerId:`, playerId);
-    
-    // Return debugging info in the response headers
-    if (playerId) {
-      const playerGames = await allQuery(
-        'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
-        [playerId]
-      );
-      console.log(`Player ${playerId} is in ${playerGames.length} games:`, playerGames.map(g => g.game_id));
-      
-      // Set debugging info in response headers
-      res.setHeader('X-Debug-PlayerId', playerId);
-      res.setHeader('X-Debug-PlayerGames', playerGames.length.toString());
-      res.setHeader('X-Debug-FilteredGames', games.length.toString());
-      res.setHeader('X-Debug-Query', query.substring(0, 100) + '...');
-      res.setHeader('X-Debug-IsFiltered', 'true');
-      
-      console.log('Setting debug headers:', {
-        playerId,
-        playerGames: playerGames.length,
-        filteredGames: games.length
-      });
-    }
-    
-    // DEBUG: About to return data to frontend
-    console.log('🚀 BACKEND DEBUG: About to return data to frontend');
-    console.log('  playerId:', playerId);
-    console.log('  games.length:', games.length);
-    console.log('  timestamp:', new Date().toISOString());
-    
-    // Temporary debug response - include debug info in the response
-    if (playerId) {
-      const playerGames = await allQuery(
-        'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
-        [playerId]
-      );
-      console.log('🚀 BACKEND DEBUG: Returning filtered games for playerId:', playerId);
-      console.log('  playerGames.length:', playerGames.length);
-      console.log('  filteredGames.length:', games.length);
-      
-      res.json({
-        games: games,
-        debug: {
-          playerId: playerId,
-          playerGamesCount: playerGames.length,
-          filteredGamesCount: games.length,
-          isFiltered: true,
-          timestamp: new Date().toISOString()
-        }
-      });
-    } else {
-      console.log('🚀 BACKEND DEBUG: Returning all games (no filter)');
-      // Add version info to all responses
-      res.json({
-        games: games,
-        version: '1.2.3',
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    console.error('Error fetching games:', error);
-    res.status(500).json({ error: 'Failed to fetch games' });
-  }
-});
-
-// Get single game with players
-router.get('/:id', async (req, res) => {
-  try {
-    const game = await getQuery(`
-      SELECT 
-        id, date, total_buyins, total_cashouts, discrepancy, 
-        is_completed, created_at, updated_at
-      FROM games 
-      WHERE id = ?
-    `, [req.params.id]);
-
-    if (!game) {
-      return res.status(404).json({ error: 'Game not found' });
-    }
-
-    const players = await allQuery(`
-      SELECT 
-        gp.id, gp.buyin, gp.cashout, gp.profit,
-        p.id as player_id, p.name as player_name
-      FROM game_players gp
-      JOIN players p ON gp.player_id = p.id
-      WHERE gp.game_id = ?
-      ORDER BY p.name ASC
-    `, [req.params.id]);
-
-    res.json({ ...game, players });
-  } catch (error) {
-    console.error('Error fetching game:', error);
-    res.status(500).json({ error: 'Failed to fetch game' });
-  }
-});
-
-// Create new game
-router.post('/', [
-  body('date').isISO8601().withMessage('Valid date is required'),
-  body('players').isArray({ min: 1 }).withMessage('At least one player is required'),
-  body('players.*.player_id').notEmpty().withMessage('Player ID is required'),
-  body('players.*.buyin').isNumeric().withMessage('Buy-in must be a number'),
-  body('players.*.cashout').isNumeric().withMessage('Cash-out must be a number')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { date, players } = req.body;
-
-    // Validate all players exist
-    const playerIds = players.map(p => p.player_id);
-    const existingPlayers = await allQuery(
-      `SELECT id FROM players WHERE id IN (${playerIds.map(() => '?').join(',')})`,
-      playerIds
-    );
-
-    if (existingPlayers.length !== playerIds.length) {
-      return res.status(400).json({ error: 'One or more players not found' });
-    }
-
-    const gameId = uuidv4();
-    const totalBuyins = players.reduce((sum, p) => sum + parseFloat(p.buyin), 0);
-    const totalCashouts = players.reduce((sum, p) => sum + parseFloat(p.cashout), 0);
-    const discrepancy = totalCashouts - totalBuyins;
-
-    // Create game
-    await runQuery(`
-      INSERT INTO games (id, date, total_buyins, total_cashouts, discrepancy)
-      VALUES (?, ?, ?, ?, ?)
-    `, [gameId, date, totalBuyins, totalCashouts, discrepancy]);
-
-    // Add players to game
-    for (const player of players) {
-      const profit = parseFloat(player.cashout) - parseFloat(player.buyin);
-      const gamePlayerId = uuidv4();
-      
-      await runQuery(`
-        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [gamePlayerId, gameId, player.player_id, player.buyin, player.cashout, profit]);
-    }
-
-    // Update player statistics
-    for (const player of players) {
-      const profit = parseFloat(player.cashout) - parseFloat(player.buyin);
-      
-      await runQuery(`
-        UPDATE players SET 
-          net_profit = net_profit + ?,
-          total_games = total_games + 1,
-          total_buyins = total_buyins + ?,
-          total_cashouts = total_cashouts + ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [profit, player.buyin, player.cashout, player.player_id]);
-    }
-
-    const newGame = await getQuery(`
-      SELECT 
-        id, date, total_buyins, total_cashouts, discrepancy, 
-        is_completed, created_at, updated_at
-      FROM games 
-      WHERE id = ?
-    `, [gameId]);
-
-    await Promise.allSettled(
-      players.map(async (player) => {
-        try {
-          const playerData = await getQuery('SELECT name, email FROM players WHERE id = ?', [player.player_id]);
-          if (playerData && playerData.email) {
-            const profit = parseFloat(player.cashout) - parseFloat(player.buyin);
-            await sendGameResultEmail(playerData.email, playerData.name, {
-              buyin: player.buyin,
-              cashout: player.cashout,
-              profit,
-              date,
-            });
-          }
-        } catch (emailErr) {
-          /* non-fatal */
-        }
-      })
-    );
-
-    res.status(201).json(newGame);
-  } catch (error) {
-    console.error('Error creating game:', error);
-    res.status(500).json({ error: 'Failed to create game' });
-  }
-});
-
-// Update game
-router.put('/:id', [
-  body('date').optional().isISO8601().withMessage('Valid date is required'),
-  body('is_completed').optional().isBoolean().withMessage('is_completed must be boolean')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const gameId = req.params.id;
-    const { date, is_completed } = req.body;
-
-    // Check if game exists
-    const existingGame = await getQuery('SELECT id FROM games WHERE id = ?', [gameId]);
-    if (!existingGame) {
-      return res.status(404).json({ error: 'Game not found' });
-    }
-
-    const updateFields = [];
-    const updateValues = [];
-
-    if (date !== undefined) {
-      updateFields.push('date = ?');
-      updateValues.push(date);
-    }
-
-    if (is_completed !== undefined) {
-      updateFields.push('is_completed = ?');
-      updateValues.push(is_completed);
-    }
-
-    if (updateFields.length === 0) {
-      return res.status(400).json({ error: 'No fields to update' });
-    }
-
-    updateFields.push('updated_at = CURRENT_TIMESTAMP');
-    updateValues.push(gameId);
-
-    await runQuery(
-      `UPDATE games SET ${updateFields.join(', ')} WHERE id = ?`,
-      updateValues
-    );
-
-    const updatedGame = await getQuery(`
-      SELECT 
-        id, date, total_buyins, total_cashouts, discrepancy, 
-        is_completed, created_at, updated_at
-      FROM games 
-      WHERE id = ?
-    `, [gameId]);
-
-    res.json(updatedGame);
-  } catch (error) {
-    console.error('Error updating game:', error);
-    res.status(500).json({ error: 'Failed to update game' });
-  }
-});
-
-// Delete game
+// Delete game endpoint (must be before other /api/games/:id routes)
 router.delete('/:id', async (req, res) => {
   try {
     const gameId = req.params.id;
-
-    // Check if game exists
-    const existingGame = await getQuery('SELECT id FROM games WHERE id = ?', [gameId]);
-    if (!existingGame) {
-      return res.status(404).json({ error: 'Game not found' });
-    }
-
-    // Get game players to reverse statistics
-    const gamePlayers = await allQuery(`
-      SELECT player_id, buyin, cashout, profit
-      FROM game_players 
-      WHERE game_id = ?
+    
+    // First, delete all game_players records for this game
+    await queryDatabase(`
+      DELETE FROM game_players 
+      WHERE game_id = $1
     `, [gameId]);
-
-    // Reverse player statistics
-    for (const player of gamePlayers) {
-      await runQuery(`
-        UPDATE players SET 
-          net_profit = net_profit - ?,
-          total_games = total_games - 1,
-          total_buyins = total_buyins - ?,
-          total_cashouts = total_cashouts - ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [player.profit, player.buyin, player.cashout, player.player_id]);
-    }
-
-    // Delete game (cascade will delete game_players)
-    await runQuery('DELETE FROM games WHERE id = ?', [gameId]);
-
+    
+    
+    // Then delete the game itself
+    await queryDatabase(`
+      DELETE FROM games 
+      WHERE id = $1
+    `, [gameId]);
+    
     res.json({ message: 'Game deleted successfully' });
   } catch (error) {
-    console.error('Error deleting game:', error);
+    console.error('🎮 Error deleting game:', error);
     res.status(500).json({ error: 'Failed to delete game' });
   }
 });
-
-// Add player to existing game
-router.post('/:gameId/players', [
-  body('players').optional().isArray({ min: 1 }).withMessage('Players must be an array with at least one player'),
-  body('players.*.player_id').optional().notEmpty().withMessage('Player ID is required'),
-  body('players.*.buyin').optional().isNumeric().withMessage('Buy-in must be a number'),
-  body('players.*.cashout').optional().isNumeric().withMessage('Cash-out must be a number'),
-  // Support legacy single player format
-  body('player_id').optional().notEmpty().withMessage('Player ID is required'),
-  body('buyin').optional().isNumeric().withMessage('Buy-in must be a number'),
-  body('cashout').optional().isNumeric().withMessage('Cash-out must be a number')
-], async (req, res) => {
+// Game players endpoint
+router.get('/:gameId/players', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    const gameId = req.params.gameId;
+    
+    // Get game player details with correct column names
+    const gamePlayers = await queryDatabase(`
+      SELECT 
+        gp.player_id,
+        gp.buyin,
+        gp.cashout,
+        gp.profit,
+        p.name as player_name
+      FROM game_players gp
+      JOIN players p ON gp.player_id = p.id
+      WHERE gp.game_id = $1
+      ORDER BY p.name
+    `, [gameId]);
+    
+    if (gamePlayers) {
+      res.json(gamePlayers);
+    } else {
+      res.json([]);
     }
-
-    const { gameId } = req.params;
+  } catch (error) {
+    console.error('🎮 Error fetching game players:', error);
+    res.status(500).json({ error: 'Failed to fetch game players' });
+  }
+});
+// Add players to existing game endpoint
+router.post('/:gameId/players', async (req, res) => {
+  try {
+    const gameId = req.params.gameId;
     const { players, player_id, buyin, cashout } = req.body;
     
     // Support both array format and single player format
     let playersToAdd = [];
-    if (players && Array.isArray(players)) {
+    if (players && Array.isArray(players) && players.length > 0) {
       playersToAdd = players;
     } else if (player_id) {
       // Legacy single player format
@@ -386,271 +74,489 @@ router.post('/:gameId/players', [
       return res.status(400).json({ error: 'At least one player is required' });
     }
     
-    // Check if game exists (once, outside the loop)
-    const existingGame = await getQuery('SELECT id FROM games WHERE id = ?', [gameId]);
-    if (!existingGame) {
-      return res.status(404).json({ error: 'Game not found' });
-    }
     
-    const results = [];
-    
+    // Add each player to the game
     for (const player of playersToAdd) {
-      const { player_id: pid, buyin: bin, cashout: cout } = player;
-      const profit = parseFloat(cout) - parseFloat(bin);
-
-      // Check if player exists
-      const existingPlayer = await getQuery('SELECT id, name FROM players WHERE id = ?', [pid]);
-      if (!existingPlayer) {
-        results.push({ player_id: pid, error: 'Player not found' });
-        continue;
-      }
-
-      // Check if player is already in this game
-      const existingGamePlayer = await getQuery(
-        'SELECT id FROM game_players WHERE game_id = ? AND player_id = ?',
-        [gameId, pid]
-      );
-
-      if (existingGamePlayer) {
-        results.push({ player_id: pid, error: 'Player is already in this game' });
-        continue;
-      }
-
-      // Add player to game
-      const gamePlayerId = uuidv4();
-      await runQuery(`
-        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [gamePlayerId, gameId, pid, bin, cout, profit]);
-
-      // Update player statistics
-      await runQuery(`
-        UPDATE players 
-        SET 
-          net_profit = net_profit + ?,
-          total_games = total_games + 1,
-          total_buyins = total_buyins + ?,
-          total_cashouts = total_cashouts + ?,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [profit, bin, cout, pid]);
-
-      results.push({
-        id: gamePlayerId,
-        player_id: pid,
-        player_name: existingPlayer.name,
-        buyin: bin,
-        cashout: cout,
-        profit
-      });
+      const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
+      
+      
+      await queryDatabase(`
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      `, [
+        require('crypto').randomUUID(),
+        gameId,
+        player.player_id,
+        player.buyin.toString(),
+        player.cashout.toString(),
+        profit.toString()
+      ]);
     }
-
-    // Recalculate and update game totals
-    const gameTotals = await getQuery(`
+    
+    // Update game totals
+    const gameStats = await queryDatabase(`
       SELECT 
-        SUM(buyin) as total_buyins,
-        SUM(cashout) as total_cashouts
+        COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+        COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts
       FROM game_players 
-      WHERE game_id = ?
+      WHERE game_id = $1
     `, [gameId]);
-
-    const discrepancy = gameTotals.total_cashouts - gameTotals.total_buyins;
-
-    await runQuery(`
-      UPDATE games 
-      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
-
-    // Check if all players were added successfully
-    const playerErrors = results.filter(r => r.error);
-    if (playerErrors.length > 0 && results.length === playerErrors.length) {
-      return res.status(400).json({ 
-        error: 'Failed to add players',
-        details: playerErrors
-      });
+    
+    if (gameStats && gameStats.length > 0) {
+      const totalBuyins = gameStats[0].total_buyins;
+      const totalCashouts = gameStats[0].total_cashouts;
+      const discrepancy = parseFloat(totalCashouts) - parseFloat(totalBuyins);
+      
+      await queryDatabase(`
+        UPDATE games 
+        SET total_buyins = $1, total_cashouts = $2, discrepancy = $3, updated_at = NOW()
+        WHERE id = $4
+      `, [totalBuyins, totalCashouts, discrepancy.toString(), gameId]);
     }
+    
+    const gd = await queryDatabase('SELECT date FROM games WHERE id = $1', [gameId]);
+    const gameDate = gd?.[0]?.date || new Date().toISOString();
 
-    const game = await getQuery('SELECT date FROM games WHERE id = ?', [gameId]);
+    // Await SMTP before responding — Vercel terminates the function after res.json(),
+    // which previously killed fire-and-forget email tasks.
     await Promise.allSettled(
-      results.filter(r => !r.error).map(async (result) => {
+      playersToAdd.map(async (p) => {
         try {
-          const playerData = await getQuery('SELECT email FROM players WHERE id = ?', [result.player_id]);
-          if (playerData && playerData.email) {
-            await sendGameResultEmail(playerData.email, result.player_name, {
-              buyin: result.buyin,
-              cashout: result.cashout,
-              profit: result.profit,
-              date: game?.date || new Date().toISOString(),
-            });
-          }
-        } catch (emailErr) {
+          const rows = await queryDatabase(
+            'SELECT name, email FROM players WHERE id = $1',
+            [p.player_id]
+          );
+          if (!rows || !rows[0] || !rows[0].email) return;
+          const profit =
+            parseFloat(p.cashout || 0) - parseFloat(p.buyin || 0);
+          await sendGameResultEmail(rows[0].email, rows[0].name, {
+            buyin: p.buyin,
+            cashout: p.cashout,
+            profit,
+            date: gameDate,
+          });
+        } catch (_) {
           /* non-fatal */
         }
       })
     );
 
-    res.json({ 
-      message: playersToAdd.length === 1 ? 'Player added to game successfully' : 'Players added to game successfully',
-      players: results.filter(r => !r.error),
-      errors: playerErrors.length > 0 ? playerErrors : undefined
-    });
+    res.json({ message: 'Players added successfully' });
   } catch (error) {
-    console.error('Error adding player to game:', error);
-    res.status(500).json({ error: 'Failed to add player to game' });
+    console.error('🎮 Error adding players to game:', error);
+    res.status(500).json({ error: 'Failed to add players to game' });
   }
 });
-
-// Update game player amounts
-router.put('/:gameId/players/:playerId', [
-  body('buyin').isNumeric().withMessage('Buy-in must be a number'),
-  body('cashout').isNumeric().withMessage('Cash-out must be a number')
-], async (req, res) => {
+// Remove player from game endpoint
+router.delete('/:gameId/players/:playerId', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { gameId, playerId } = req.params;
-    const { buyin, cashout } = req.body;
-    const profit = cashout - buyin;
-
-    // Check if game-player record exists and get OLD values BEFORE updating
-    const oldGamePlayer = await getQuery(
-      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = ? AND player_id = ?',
+    const gameId = req.params.gameId;
+    const playerId = req.params.playerId;
+    
+    // Get the game_player record to reverse statistics
+    const gamePlayer = await queryDatabase(
+      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = $1 AND player_id = $2',
       [gameId, playerId]
     );
 
-    if (!oldGamePlayer) {
+    if (!gamePlayer || gamePlayer.length === 0) {
       return res.status(404).json({ error: 'Player not found in this game' });
     }
 
-    // Update game player amounts
-    await runQuery(`
-      UPDATE game_players 
-      SET buyin = ?, cashout = ?, profit = ?
-      WHERE game_id = ? AND player_id = ?
-    `, [buyin, cashout, profit, gameId, playerId]);
-
-    // Recalculate and update game totals
-    const gameTotals = await getQuery(`
-      SELECT 
-        SUM(buyin) as total_buyins,
-        SUM(cashout) as total_cashouts
-      FROM game_players 
-      WHERE game_id = ?
-    `, [gameId]);
-
-    const discrepancy = gameTotals.total_cashouts - gameTotals.total_buyins;
-
-    await runQuery(`
-      UPDATE games 
-      SET total_buyins = ?, total_cashouts = ?, discrepancy = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [gameTotals.total_buyins, gameTotals.total_cashouts, discrepancy, gameId]);
-
-    // Update player statistics with the difference
-    const oldProfit = parseFloat(oldGamePlayer.profit || 0);
-    const oldBuyin = parseFloat(oldGamePlayer.buyin || 0);
-    const oldCashout = parseFloat(oldGamePlayer.cashout || 0);
+    const buyin = parseFloat(gamePlayer[0].buyin || 0);
+    const cashout = parseFloat(gamePlayer[0].cashout || 0);
+    const profit = parseFloat(gamePlayer[0].profit || 0);
     
-    const profitDifference = profit - oldProfit;
-    const buyinDifference = buyin - oldBuyin;
-    const cashoutDifference = cashout - oldCashout;
-
-    await runQuery(`
+    // Delete the game_player record
+    await queryDatabase(
+      'DELETE FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, playerId]
+    );
+    
+    // Update player statistics (reverse the amounts)
+    await queryDatabase(`
       UPDATE players 
       SET 
-        net_profit = net_profit + ?,
-        total_buyins = total_buyins + ?,
-        total_cashouts = total_cashouts + ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
+        net_profit = net_profit - $1,
+        total_games = total_games - 1,
+        total_buyins = total_buyins - $2,
+        total_cashouts = total_cashouts - $3,
+        updated_at = NOW()
+      WHERE id = $4
+    `, [profit, buyin, cashout, playerId]);
+    
+    // Update game totals
+    const gameStats = await queryDatabase(`
+      SELECT 
+        COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+        COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts
+      FROM game_players 
+      WHERE game_id = $1
+    `, [gameId]);
+    
+    const totalBuyins = parseFloat(gameStats?.[0]?.total_buyins || 0);
+    const totalCashouts = parseFloat(gameStats?.[0]?.total_cashouts || 0);
+    const discrepancy = totalCashouts - totalBuyins;
+    
+    await queryDatabase(`
+      UPDATE games 
+      SET total_buyins = $1, total_cashouts = $2, discrepancy = $3, updated_at = NOW()
+      WHERE id = $4
+    `, [totalBuyins, totalCashouts, discrepancy, gameId]);
+    
+    res.json({ message: 'Player removed from game successfully' });
+  } catch (error) {
+    console.error('🎮 Error removing player from game:', error);
+    res.status(500).json({ error: 'Failed to remove player from game' });
+  }
+});
+// Update player amounts in game endpoint
+router.put('/:gameId/players/:playerId', async (req, res) => {
+  try {
+    const gameId = req.params.gameId;
+    const playerId = req.params.playerId;
+    const { buyin, cashout } = req.body;
+    
+    // Get OLD values BEFORE updating
+    const oldGamePlayer = await queryDatabase(
+      'SELECT buyin, cashout, profit FROM game_players WHERE game_id = $1 AND player_id = $2',
+      [gameId, playerId]
+    );
 
+    if (!oldGamePlayer || oldGamePlayer.length === 0) {
+      return res.status(404).json({ error: 'Player not found in this game' });
+    }
+
+    const oldProfit = parseFloat(oldGamePlayer[0].profit || 0);
+    const oldBuyin = parseFloat(oldGamePlayer[0].buyin || 0);
+    const oldCashout = parseFloat(oldGamePlayer[0].cashout || 0);
+    
+    const newProfit = parseFloat(cashout || 0) - parseFloat(buyin || 0);
+    
+    // Update game player amounts
+    const updateResult = await queryDatabase(`
+      UPDATE game_players 
+      SET buyin = $1, cashout = $2, profit = $3
+      WHERE game_id = $4 AND player_id = $5
+      RETURNING buyin, cashout, profit
+    `, [parseFloat(buyin), parseFloat(cashout), newProfit, gameId, playerId]);
+    
+    // Update game totals
+    const gameStats = await queryDatabase(`
+      SELECT 
+        COALESCE(SUM(CAST(buyin AS DECIMAL)), 0) as total_buyins,
+        COALESCE(SUM(CAST(cashout AS DECIMAL)), 0) as total_cashouts
+      FROM game_players 
+      WHERE game_id = $1
+    `, [gameId]);
+    
+    if (gameStats && gameStats.length > 0) {
+      const totalBuyins = gameStats[0].total_buyins;
+      const totalCashouts = gameStats[0].total_cashouts;
+      const discrepancy = parseFloat(totalCashouts) - parseFloat(totalBuyins);
+      
+      await queryDatabase(`
+        UPDATE games 
+        SET total_buyins = $1, total_cashouts = $2, discrepancy = $3, updated_at = NOW()
+        WHERE id = $4
+      `, [totalBuyins, totalCashouts, discrepancy, gameId]);
+    }
+
+    // Update player statistics with the difference
+    const profitDifference = newProfit - oldProfit;
+    const buyinDifference = parseFloat(buyin || 0) - oldBuyin;
+    const cashoutDifference = parseFloat(cashout || 0) - oldCashout;
+
+    await queryDatabase(`
+      UPDATE players 
+      SET 
+        net_profit = net_profit + $1,
+        total_buyins = total_buyins + $2,
+        total_cashouts = total_cashouts + $3,
+        updated_at = NOW()
+      WHERE id = $4
+    `, [profitDifference, buyinDifference, cashoutDifference, playerId]);
+    
     res.json({ message: 'Player amounts updated successfully' });
   } catch (error) {
-    console.error('Error updating game player amounts:', error);
+    console.error('Error updating player amounts:', error);
     res.status(500).json({ error: 'Failed to update player amounts' });
   }
 });
-
-// Simple test endpoint
-router.get('/test', (req, res) => {
-  res.json({ 
-    message: 'Backend is working',
-    timestamp: new Date().toISOString(),
-    query: req.query,
-    url: req.url
-  });
-});
-
-// Test endpoint to verify player filtering
-router.get('/test-filter/:playerId', async (req, res) => {
+// Individual game endpoint with players
+router.get('/:id', async (req, res) => {
   try {
-    const { playerId } = req.params;
-    console.log('Testing filter for playerId:', playerId);
+    const gameId = req.params.id;
     
-    // Test the subquery first
-    const playerGames = await allQuery(
-      'SELECT DISTINCT game_id FROM game_players WHERE player_id = ?',
-      [playerId]
-    );
-    console.log('Player games found:', playerGames);
+    // Get game details
+    const game = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
+      FROM games 
+      WHERE id = $1
+    `, [gameId]);
     
-    // Test the full query with INNER JOIN
-    const filteredGames = await allQuery(`
-      SELECT DISTINCT
-        g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
-        g.is_completed, g.created_at, g.updated_at,
-        (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
-      FROM games g
-      INNER JOIN game_players gp ON g.id = gp.game_id
-      WHERE gp.player_id = ?
-      ORDER BY g.date DESC, g.created_at DESC
-    `, [playerId]);
-    
-    res.json({
-      playerId: playerId,
-      playerGamesCount: playerGames.length,
-      filteredGamesCount: filteredGames.length,
-      playerGames: playerGames,
-      filteredGames: filteredGames
-    });
+    if (game && game.length > 0) {
+      
+      // Get game players
+      const gamePlayers = await queryDatabase(`
+        SELECT 
+          gp.id,
+          gp.player_id,
+          gp.buyin,
+          gp.cashout,
+          gp.profit,
+          p.name as player_name
+        FROM game_players gp
+        JOIN players p ON gp.player_id = p.id
+        WHERE gp.game_id = $1
+        ORDER BY p.name
+      `, [gameId]);
+      
+      // Combine game data with players
+      const gameWithPlayers = {
+        ...game[0],
+        players: gamePlayers || []
+      };
+      
+      res.json(gameWithPlayers);
+    } else {
+      res.status(404).json({ error: 'Game not found' });
+    }
   } catch (error) {
-    console.error('Test filter error:', error);
-    res.status(500).json({ error: 'Test filter failed' });
+    console.error('🎮 Error fetching individual game:', error);
+    res.status(500).json({ error: 'Failed to fetch game' });
   }
 });
+// Games endpoints (real data with fallback)
+router.get('/', async (req, res) => {
+  try {
+    const { playerId } = req.query;
+    
+    let query;
+    let params = [];
+    
+    if (playerId) {
+      // Filter games by player ID - using INNER JOIN approach
+      query = `
+        SELECT DISTINCT
+          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
+          g.is_completed, g.created_at, g.updated_at,
+          (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
+        FROM games g
+        INNER JOIN game_players gp ON g.id = gp.game_id
+        WHERE gp.player_id = $1
+        ORDER BY g.date DESC, g.created_at DESC
+      `;
+      params = [playerId];
+    } else {
+      // Get all games
+      query = `
+        SELECT 
+          g.id, g.date, g.total_buyins, g.total_cashouts, g.discrepancy, 
+          g.is_completed, g.created_at, g.updated_at,
+          (SELECT COUNT(*) FROM game_players gp2 WHERE gp2.game_id = g.id) as player_count
+        FROM games g
+        ORDER BY g.date DESC, g.created_at DESC
+      `;
+    }
+    
+    const games = await queryDatabase(query, params);
+    res.json(games);
+  } catch (error) {
+    console.error('Error fetching games:', error);
+    res.status(500).json({ error: 'Failed to fetch games' });
+  }
+});
+// Create new game endpoint
+router.post('/', async (req, res) => {
+  try {
+    const { date, players } = req.body;
+    
+    if (!players || players.length === 0) {
+      return res.status(400).json({ error: 'At least one player is required' });
+    }
+    
+    if (!date) {
+      return res.status(400).json({ error: 'Game date is required' });
+    }
+    
+    // Calculate totals from player data
+    let totalBuyins = 0;
+    let totalCashouts = 0;
+    
+    for (const player of players) {
+      totalBuyins += parseFloat(player.buyin || 0);
+      totalCashouts += parseFloat(player.cashout || 0);
+    }
+    
+    const discrepancy = totalCashouts - totalBuyins;
+    
+    // Start transaction by creating the game first
+    const gameId = require('crypto').randomUUID();
+    const gameResult = await queryDatabase(`
+      INSERT INTO games (id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, TRUE, NOW(), NOW())
+    `, [gameId, date, totalBuyins.toString(), totalCashouts.toString(), discrepancy.toString()]);
+    
+    if (!gameResult) {
+      return res.status(500).json({ error: 'Failed to create game' });
+    }
+    
+    
+    // Add players to the game
+    for (const player of players) {
+      const profit = parseFloat(player.cashout || 0) - parseFloat(player.buyin || 0);
+      
+      
+      const playerResult = await queryDatabase(`
+        INSERT INTO game_players (id, game_id, player_id, buyin, cashout, profit, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      `, [
+        require('crypto').randomUUID(),
+        gameId,
+        player.player_id, // Frontend sends player_id, not id
+        player.buyin.toString(),
+        player.cashout.toString(),
+        profit.toString()
+      ]);
+      
+      if (!playerResult) {
+        // Logged rather than thrown so one bad row cannot fail the whole game.
+        console.error('🎮 Failed to add player:', player.player_id);
+      }
+    }
+    
+    
+    // Return the created game
+    const createdGame = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
+      FROM games 
+      WHERE id = $1
+    `, [gameId]);
+    
+    const payload =
+      createdGame && createdGame.length > 0
+        ? createdGame[0]
+        : { id: gameId, date, message: 'Game created successfully' };
+    const gameDate = payload.date || date;
 
-// Get game statistics
+    await Promise.allSettled(
+      players.map(async (gp) => {
+        try {
+          const rows = await queryDatabase(
+            'SELECT name, email FROM players WHERE id = $1',
+            [gp.player_id]
+          );
+          if (!rows || !rows[0] || !rows[0].email) return;
+          const profit =
+            parseFloat(gp.cashout || 0) - parseFloat(gp.buyin || 0);
+          await sendGameResultEmail(rows[0].email, rows[0].name, {
+            buyin: gp.buyin,
+            cashout: gp.cashout,
+            profit,
+            date: gameDate,
+          });
+        } catch (_) {
+          /* non-fatal */
+        }
+      })
+    );
+
+    res.status(201).json(payload);
+  } catch (error) {
+    console.error('🎮 Error creating game:', error);
+    res.status(500).json({ error: 'Failed to create game' });
+  }
+});
+// Update game endpoint
+router.put('/:id', async (req, res) => {
+  try {
+    const gameId = req.params.id;
+    const { date, is_completed } = req.body;
+    
+    if (!gameId) {
+      return res.status(400).json({ error: 'Game ID is required' });
+    }
+    
+    // Update game basic info
+    const updateFields = [];
+    const updateValues = [];
+    let paramCount = 1;
+    
+    if (date) {
+      updateFields.push(`date = $${paramCount}`);
+      updateValues.push(date);
+      paramCount++;
+    }
+    
+    if (typeof is_completed === 'boolean') {
+      updateFields.push(`is_completed = $${paramCount}`);
+      updateValues.push(is_completed);
+      paramCount++;
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+    
+    updateFields.push(`updated_at = NOW()`);
+    updateValues.push(gameId);
+    
+    const updateQuery = `
+      UPDATE games 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+    `;
+    
+    await queryDatabase(updateQuery, updateValues);
+    
+    
+    // Return the updated game
+    const updatedGame = await queryDatabase(`
+      SELECT 
+        id, date, total_buyins, total_cashouts, discrepancy, is_completed, created_at, updated_at
+      FROM games 
+      WHERE id = $1
+    `, [gameId]);
+    
+    if (updatedGame && updatedGame.length > 0) {
+      res.json(updatedGame[0]);
+    } else {
+      res.status(404).json({ error: 'Game not found' });
+    }
+  } catch (error) {
+    console.error('🎮 Error updating game:', error);
+    res.status(500).json({ error: 'Failed to update game' });
+  }
+});
 router.get('/stats/overview', async (req, res) => {
   try {
-    const stats = await getQuery(`
+    // Try to get real data from database
+    const stats = await queryDatabase(`
       SELECT 
         COUNT(*) as total_games,
-        SUM(CASE WHEN is_completed = TRUE THEN 1 ELSE 0 END) as completed_games,
-        SUM(total_buyins) as total_buyins,
-        SUM(total_cashouts) as total_cashouts,
-        AVG(discrepancy) as avg_discrepancy,
-        MAX(date) as last_game_date
+        COALESCE(SUM(CAST(total_buyins AS DECIMAL)), 0) as total_buyins
       FROM games
     `);
-
-    const recentGames = await allQuery(`
-      SELECT 
-        id, date, total_buyins, total_cashouts, discrepancy, is_completed
-      FROM games
-      ORDER BY date DESC
-      LIMIT 5
-    `);
-
-    res.json({ ...stats, recentGames });
+    
+    if (stats && stats.length > 0) {
+      res.json({
+        total_games: parseInt(stats[0].total_games),
+        total_buyins: stats[0].total_buyins.toString()
+      });
+    } else {
+      // Fallback to mock data
+      res.json({
+        total_games: 1,
+        total_buyins: '800.00'
+      });
+    }
   } catch (error) {
-    console.error('Error fetching game stats:', error);
-    res.status(500).json({ error: 'Failed to fetch game statistics' });
+    console.error('📊 Error fetching game stats:', error);
+    console.error('📊 Error details:', error.message);
+    res.status(500).json({ error: 'Failed to fetch game stats' });
   }
 });
-
 module.exports = router;

@@ -1,6 +1,6 @@
 # Poker Tracker v2
 
-A full-stack web application for tracking poker games, player statistics, and financial settlements. Built with a React/TypeScript frontend and a Node.js/Express backend (Postgres in production, SQLite for local development).
+A full-stack web application for tracking poker games, player statistics, and financial settlements. Built with a React/TypeScript frontend and a Node.js/Express backend (Postgres).
 
 ## 🚀 Features
 
@@ -24,20 +24,25 @@ A full-stack web application for tracking poker games, player statistics, and fi
 
 ### Backend (Node.js + Express)
 
-There are currently **two server implementations**, and it matters which one you
-are editing:
+One server, on Postgres, running the same code locally and in production.
 
-| | `server/minimal.js` | `server/index.js` + `server/routes/` |
-|---|---|---|
-| Used by | **Production** (Vercel) | Local development only |
-| Database | Postgres via `DATABASE_URL` | SQLite (`server/database/poker_tracker.db`) |
-| Shape | One file, all routes | Express routers per resource |
+```
+server/
+  app.js               entry point: middleware, health, router mounting
+  db.js                connection pool and queryDatabase()
+  middleware/auth.js   the JWT gate (see Security below)
+  routes/              one router per resource
+    auth.js  players.js  games.js  settlements.js
+    discrepancy.js  bulkGame.js  export.js
+  utils/               text parsing and fuzzy name matching
+  notifications/       game-result emails
+```
 
-`vercel.json` maps every `/api/*` request to `server/minimal.js`, so a change to
-`server/routes/` has no effect on the deployed site. Consolidating these is
-tracked in the roadmap below.
+`vercel.json` maps every `/api/*` request to `server/app.js`. Locally that same
+file serves directly (`npm run dev` in `server/`), reading `server/.env`.
 
 - **Runtime**: Node.js with Express 4.18.2
+- **Database**: Postgres via `DATABASE_URL`
 - **Authentication**: JWT tokens with bcryptjs password hashing
 - **Port**: 5001 (configurable via environment)
 
@@ -53,7 +58,7 @@ tracked in the roadmap below.
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
-- SQLite3
+- PostgreSQL (local instance, or a hosted database URL)
 
 ### Installation
 
@@ -98,8 +103,9 @@ NODE_ENV=development
 # fall back to a default secret and serve an unauthenticated API.
 JWT_SECRET=<openssl rand -hex 32>
 
-# Production only (Postgres). Leave unset locally to use SQLite.
-DATABASE_URL=
+# Required. Postgres connection string; point it at a local database for
+# development, or at the production database to work against real data.
+DATABASE_URL=postgresql://user@localhost:5432/poker
 ```
 
 On Vercel these live in **Project → Settings → Environment Variables**. Changing
@@ -183,21 +189,29 @@ directly in the database.
 - `GET /api/settlements/stats/overview` - Get settlement statistics
 - `GET /api/settlements/player/:playerId/debts` - Get player debt information
 
+### Export
+- `GET /api/export/games` - CSV, one row per player per game
+- `GET /api/export/players` - CSV of player totals
+- `GET /api/export/settlements` - CSV of settlements
+
 ### Health Check
 - `GET /api/health` - Health check endpoint
 
 ## 🔒 Security Features
 
 - **JWT Authentication**: enforced by a single fail-closed gate in
-  `server/minimal.js`. Routes are protected by default; exposing one publicly
-  means adding it to `PUBLIC_PATHS` deliberately.
+  `server/middleware/auth.js`, applied before any router. Routes are protected
+  by default; exposing one publicly means adding it to `PUBLIC_PATHS`
+  deliberately.
 - **No fallback secret**: the server refuses to start without `JWT_SECRET`
 - **Closed registration**: no self-service account creation
 - **Password Hashing**: bcryptjs
 - **SQL Injection Protection**: parameterized queries
 
-Applied to the dev server (`server/index.js`) but **not** to `minimal.js`:
-Helmet, CORS, express-validator, and rate limiting.
+Not currently applied: Helmet, CORS, express-validator, and rate limiting.
+These existed only on the retired SQLite dev server and were deliberately not
+carried over in the consolidation, since rate limiting in particular needs
+tuning against real client traffic before it goes live.
 
 ## 📱 Responsive Design
 
@@ -238,8 +252,8 @@ If you have any questions or need help, please open an issue in the repository.
 ## 🎯 Roadmap
 
 - [x] Player performance charts and analytics (recharts; `PlayerPerformanceModal`)
-- [ ] Consolidate the two server implementations onto one codebase
-- [ ] Game history export functionality
+- [x] Consolidate the two server implementations onto one codebase
+- [x] Game history export functionality (CSV, per resource)
 - [ ] Multi-user support with user-specific data
 - [ ] Real-time notifications
 - [ ] Mobile app (React Native)
