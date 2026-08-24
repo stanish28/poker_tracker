@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, UserPlus } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle, UserPlus } from 'lucide-react';
 import { apiService } from '../../services/api';
 
 interface TextImportModalProps {
@@ -19,6 +19,9 @@ interface ParsedPlayer {
 
 const TextImportModal: React.FC<TextImportModalProps> = ({ onClose, onGameCreated }) => {
   const [step, setStep] = useState<'input' | 'preview' | 'creating'>('input');
+  const [mode, setMode] = useState<'paste' | 'upload'>('paste');
+  const [ledgerFileName, setLedgerFileName] = useState<string | null>(null);
+  const [ledgerWarnings, setLedgerWarnings] = useState<string[]>([]);
   const [text, setText] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,6 +40,15 @@ const TextImportModal: React.FC<TextImportModalProps> = ({ onClose, onGameCreate
   
   // Discrepancy settlement state
   const [adjustedPlayers, setAdjustedPlayers] = useState<ParsedPlayer[]>([]);
+  const [allPlayers, setAllPlayers] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Needed so an unmatched name can be pointed at an existing player instead of
+  // silently creating a duplicate.
+  useEffect(() => {
+    apiService.getPlayers()
+      .then((list) => setAllPlayers(list.map((p) => ({ id: p.id, name: p.name }))))
+      .catch(() => setAllPlayers([]));
+  }, []);
 
   useEffect(() => {
     if (step === 'preview' && parsedData) {
@@ -87,6 +99,48 @@ const TextImportModal: React.FC<TextImportModalProps> = ({ onClose, onGameCreate
   };
 
 
+  /**
+   * Read a PokerNow ledger and hand its contents to the parser.
+   *
+   * The file is read in the browser and posted as JSON text rather than as a
+   * multipart upload, so the request carries the normal auth header and needs
+   * no special handling on the server.
+   */
+  const handleLedgerFile = async (file: File) => {
+    setError(null);
+    setLedgerWarnings([]);
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError('That file is larger than 2MB, which is far bigger than any ledger. Check the file.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const csv = await file.text();
+      const result = await apiService.parseLedgerCsv(csv);
+
+      if (!result.success) throw new Error('Failed to read the ledger');
+
+      // The ledger's own timestamps decide the date, rendered in the viewer's
+      // timezone so a late-night game is not pushed to the following day.
+      const start = result.preview.earliestSessionStart;
+      const gameDate = start
+        ? new Date(start).toLocaleDateString('en-CA')
+        : new Date().toLocaleDateString('en-CA');
+
+      setLedgerFileName(file.name);
+      setLedgerWarnings(result.validation.warnings || []);
+      setDate(gameDate);
+      setParsedData({ ...result, preview: { ...result.preview, gameDate } });
+      setStep('preview');
+    } catch (err: any) {
+      setError(err.message || 'Failed to read the ledger');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleCreateGame = async () => {
     if (!parsedData) return;
 
@@ -100,7 +154,10 @@ const TextImportModal: React.FC<TextImportModalProps> = ({ onClose, onGameCreate
       const players = playersToUse.map((player: ParsedPlayer) => ({
         name: player.name,
         profit: player.profit,
-        playerId: playerMappings[player.name] || undefined
+        playerId: playerMappings[player.name] || undefined,
+        // Only a ledger import carries real figures; text import leaves these
+        // undefined so the server derives them from profit as before.
+        ...(ledgerFileName ? { buyin: player.buyin, cashout: player.cashout } : {})
       }));
 
       const result = await apiService.createBulkGame({
@@ -190,8 +247,80 @@ const TextImportModal: React.FC<TextImportModalProps> = ({ onClose, onGameCreate
     });
   };
 
+  const renderModeTabs = () => (
+    <div className="flex border-b border-gray-200">
+      {(['paste', 'upload'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => { setMode(m); setError(null); }}
+          disabled={isLoading}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            mode === m
+              ? 'border-primary-600 text-primary-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          {m === 'paste' ? 'Paste tally' : 'Upload ledger'}
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderUploadStep = () => (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Upload a PokerNow ledger</h3>
+        <p className="text-sm text-gray-600">
+          Download the ledger CSV from PokerNow and drop it here. Buy-ins and cash-outs are read
+          straight from the file, so the amounts are exact rather than derived from a net figure.
+        </p>
+      </div>
+
+      <label
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const file = e.dataTransfer.files?.[0];
+          if (file) handleLedgerFile(file);
+        }}
+        className="flex flex-col items-center justify-center w-full min-h-[180px] border-2 border-dashed
+                   border-gray-300 rounded-lg cursor-pointer hover:border-primary-500 hover:bg-gray-50
+                   transition-colors p-6 text-center"
+      >
+        <Upload className="h-8 w-8 text-gray-400 mb-3" />
+        <span className="text-sm font-medium text-gray-700">
+          {isLoading ? 'Reading ledger...' : 'Drop the ledger CSV here, or click to choose'}
+        </span>
+        <span className="text-xs text-gray-500 mt-1">
+          Players who rejoined are combined automatically
+        </span>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          disabled={isLoading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleLedgerFile(file);
+            e.target.value = '';
+          }}
+        />
+      </label>
+
+      <p className="text-xs text-gray-500">
+        Download the ledger after the game ends. Chips sitting in an unfinished pot belong to
+        nobody's stack, so a mid-game download will not balance.
+      </p>
+    </div>
+  );
+
   const renderInputStep = () => (
     <div className="space-y-6">
+      {renderModeTabs()}
+
+      {mode === 'upload' ? renderUploadStep() : (
+      <>
       <div>
         <h3 className="text-lg font-medium text-gray-900 mb-2">Import Game Data</h3>
         <p className="text-sm text-gray-600">
@@ -236,6 +365,8 @@ Akhil: -10.5"
           Format: PlayerName: +/-Amount (one per line)
         </p>
       </div>
+      </>
+      )}
 
       {error && (
         <div className="p-3 bg-danger-50 border border-danger-200 rounded-md">
@@ -252,14 +383,16 @@ Akhil: -10.5"
         >
           Cancel
         </button>
-        <button
-          type="button"
-          onClick={handleParse}
-          className="btn btn-primary"
-          disabled={isLoading || !text.trim()}
-        >
-          {isLoading ? 'Importing...' : 'Import & Preview'}
-        </button>
+        {mode === 'paste' && (
+          <button
+            type="button"
+            onClick={handleParse}
+            className="btn btn-primary"
+            disabled={isLoading || !text.trim()}
+          >
+            {isLoading ? 'Importing...' : 'Import & Preview'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -274,9 +407,22 @@ Akhil: -10.5"
         <div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Preview Game</h3>
           <p className="text-sm text-gray-600">
-            Review the parsed data and match players to existing ones.
+            {ledgerFileName
+              ? `Read from ${ledgerFileName}. Buy-ins and cash-outs come straight from the ledger.`
+              : 'Review the parsed data and match players to existing ones.'}
           </p>
         </div>
+
+        {ledgerWarnings.length > 0 && (
+          <div className="p-3 bg-warning-50 border border-warning-200 rounded-md space-y-1">
+            {ledgerWarnings.map((w, i) => (
+              <p key={i} className="text-sm text-warning-800 flex items-start">
+                <AlertCircle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>{w}</span>
+              </p>
+            ))}
+          </div>
+        )}
 
         {/* Create Game Button at Top */}
         <div className="flex justify-end">
@@ -420,7 +566,7 @@ Akhil: -10.5"
             <div>
               <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <UserPlus className="h-4 w-4 text-warning-600 mr-1" />
-                New Players ({matching.unmatched.length})
+                Unmatched — map or create ({matching.unmatched.length})
               </h5>
               <div className="space-y-2">
                 {matching.unmatched.map((unmatched: any, index: number) => (
@@ -431,11 +577,35 @@ Akhil: -10.5"
                         Profit: {unmatched.profit >= 0 ? '+' : ''}{unmatched.profit}
                       </span>
                     </div>
-                    {unmatched.suggestions.length > 0 && (
-                      <div className="text-xs text-gray-500">
-                        Similar: {unmatched.suggestions.map((s: any) => s.name).join(', ')}
-                      </div>
-                    )}
+                    <select
+                      value={playerMappings[unmatched.parsedName] || ''}
+                      onChange={(e) => setPlayerMappings((prev) => {
+                        const next = { ...prev };
+                        if (e.target.value) next[unmatched.parsedName] = e.target.value;
+                        else delete next[unmatched.parsedName];
+                        return next;
+                      })}
+                      className="input text-sm w-full mt-1"
+                      disabled={isLoading}
+                    >
+                      <option value="">➕ Create new player "{unmatched.parsedName}"</option>
+                      {unmatched.suggestions.length > 0 && (
+                        <optgroup label="Similar existing players">
+                          {unmatched.suggestions.map((sug: any) => (
+                            <option key={sug.id} value={sug.id}>
+                              {sug.name} ({Math.round(sug.similarity * 100)}% match)
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="All players">
+                        {allPlayers
+                          .filter((pl) => !unmatched.suggestions.some((sug: any) => sug.id === pl.id))
+                          .map((pl) => (
+                            <option key={pl.id} value={pl.id}>{pl.name}</option>
+                          ))}
+                      </optgroup>
+                    </select>
                   </div>
                 ))}
               </div>

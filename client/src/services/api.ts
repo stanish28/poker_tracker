@@ -23,6 +23,38 @@ class ApiError extends Error {
   }
 }
 
+export interface LedgerParseResponse {
+  success: boolean;
+  preview: {
+    players: Array<{
+      name: string;
+      profit: number;
+      buyin: number;
+      cashout: number;
+      sessions: number;
+    }>;
+    totalBuyins: number;
+    totalCashouts: number;
+    discrepancy: number;
+    playerCount: number;
+    earliestSessionStart: string | null;
+  };
+  matching: {
+    matched: Array<{
+      parsedName: string;
+      existingPlayer: { id: string; name: string };
+      similarity: number;
+      profit: number;
+    }>;
+    unmatched: Array<{
+      parsedName: string;
+      profit: number;
+      suggestions: Array<{ id: string; name: string; similarity: number }>;
+    }>;
+  };
+  validation: { errors: string[]; warnings: string[] };
+}
+
 class ApiService {
   private token: string | null = null;
 
@@ -296,6 +328,13 @@ class ApiService {
   }
 
   // Bulk game creation endpoints
+  async parseLedgerCsv(csv: string): Promise<LedgerParseResponse> {
+    return this.request('/bulk-game/parse-ledger', {
+      method: 'POST',
+      body: JSON.stringify({ csv }),
+    });
+  }
+
   async parseGameText(text: string, date?: string): Promise<{
     success: boolean;
     preview: {
@@ -341,6 +380,10 @@ class ApiService {
       name: string;
       profit: number;
       playerId?: string;
+      // Supplied by ledger import, which knows the real figures. Omitted by
+      // text import, where the server synthesises them from profit.
+      buyin?: number;
+      cashout?: number;
     }>;
     createNewPlayers?: boolean;
   }): Promise<{

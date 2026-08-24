@@ -3,10 +3,12 @@ const { queryDatabase } = require('../db');
 const { sendGameResultEmail } = require('../notifications/email');
 const TextParser = require('../utils/textParser');
 const FuzzyMatcher = require('../utils/fuzzyMatcher');
+const LedgerParser = require('../utils/ledgerParser');
 
 // Initialize utilities
 const textParser = new TextParser();
 const fuzzyMatcher = new FuzzyMatcher();
+const ledgerParser = new LedgerParser();
 
 const router = express.Router();
 
@@ -71,6 +73,69 @@ router.post('/parse', async (req, res) => {
  * Create game from parsed data
  * POST /api/bulk-game/create
  */
+/**
+ * Parse an uploaded PokerNow ledger CSV and return a preview.
+ * POST /api/bulk-game/parse-ledger
+ *
+ * Mirrors the shape of /parse so the client preview can be shared, but carries
+ * real buy-in and cash-out figures from the file instead of deriving them from
+ * a net amount.
+ *
+ * The file arrives as text in a JSON body rather than as a multipart upload:
+ * the client reads it with FileReader, which keeps this endpoint behind the
+ * same JSON + bearer-token handling as every other route.
+ */
+router.post('/parse-ledger', async (req, res) => {
+  try {
+    const { csv } = req.body;
+
+    if (!csv || typeof csv !== 'string') {
+      return res.status(400).json({ error: 'A ledger CSV is required' });
+    }
+
+    const parsed = ledgerParser.parse(csv);
+    if (parsed.errors.length) {
+      return res.status(400).json({
+        error: parsed.errors[0],
+        details: parsed.errors,
+        warnings: parsed.warnings
+      });
+    }
+
+    const existingPlayers = await queryDatabase(`
+      SELECT id, name FROM players ORDER BY name
+    `);
+
+    const matching = fuzzyMatcher.matchPlayers(parsed.players, existingPlayers || []);
+
+    res.json({
+      success: true,
+      preview: {
+        players: parsed.players,
+        totalBuyins: parsed.meta.totalBuyins,
+        totalCashouts: parsed.meta.totalCashouts,
+        discrepancy: parsed.meta.discrepancy,
+        playerCount: parsed.meta.playerCount,
+        // Raw timestamp: the client renders the day in the viewer's timezone,
+        // so a late-night game is not pushed onto the next date by UTC.
+        earliestSessionStart: parsed.meta.earliestSessionStart
+      },
+      matching: {
+        matched: matching.matched,
+        unmatched: matching.unmatched
+      },
+      validation: {
+        errors: [],
+        warnings: parsed.warnings
+      }
+    });
+
+  } catch (error) {
+    console.error('Error parsing ledger:', error);
+    res.status(500).json({ error: 'Failed to parse ledger' });
+  }
+});
+
 router.post('/create', async (req, res) => {
   try {
     const { date, players, createNewPlayers = true } = req.body;
@@ -88,7 +153,7 @@ router.post('/create', async (req, res) => {
     const newPlayersCreated = [];
 
     for (const playerData of players) {
-      const { name, profit, playerId } = playerData;
+      const { name, profit, playerId, buyin: rawBuyin, cashout: rawCashout } = playerData;
       
       let finalPlayerId = playerId;
 
@@ -110,14 +175,24 @@ router.post('/create', async (req, res) => {
         }
       }
 
-      // Convert profit to buy-in/cash-out
-      const { buyin, cashout } = textParser.convertProfitToBuyinCashout(profit);
+      // A ledger import knows the real amounts, so use them. Text import only
+      // yields a net figure, and falls back to synthesising the two from it.
+      const hasRealAmounts = rawBuyin !== undefined && rawCashout !== undefined;
+      const { buyin, cashout } = hasRealAmounts
+        ? { buyin: Number(rawBuyin), cashout: Number(rawCashout) }
+        : textParser.convertProfitToBuyinCashout(profit);
+
+      // Derive profit from the amounts actually being stored rather than
+      // trusting the caller's figure, so the row cannot contradict itself.
+      const finalProfit = hasRealAmounts
+        ? Math.round((cashout - buyin) * 100) / 100
+        : profit;
 
       processedPlayers.push({
         player_id: finalPlayerId,
         buyin,
         cashout,
-        profit
+        profit: finalProfit
       });
     }
 
