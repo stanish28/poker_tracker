@@ -199,6 +199,36 @@ directly in the database.
 ### Health Check
 - `GET /api/health` - Health check endpoint
 
+## 🔑 Creating a login
+
+Registration is closed, so accounts are created with a script rather than
+through the app:
+
+```bash
+node server/scripts/create-user.js
+```
+
+It prompts for a username, email, and password. The password is never echoed,
+never written to disk, and never passed as an argument (arguments are visible
+to `ps` and recorded in shell history).
+
+With `DATABASE_URL` set the account is inserted directly. Without it, the script
+prints an `INSERT` statement carrying the bcrypt hash, to paste into a database
+console -- useful when you would rather not copy the production connection
+string onto your machine:
+
+```bash
+node server/scripts/create-user.js --print-sql
+```
+
+To skip the interactive prompt, pass `--stdin` and supply three lines. Use your
+shell's own hidden read so the password stays out of history:
+
+```bash
+read -rs -p 'Password: ' PW
+printf 'admin\nadmin@example.com\n%s\n' "$PW" | node server/scripts/create-user.js --stdin
+```
+
 ## 👤 Administrator account
 
 A single account, named by the `ADMIN_USERNAME` environment variable, may merge
