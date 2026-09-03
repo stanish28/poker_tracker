@@ -85,11 +85,19 @@ async function planMerge(client, sourceIds, targetId) {
 
   // A settlement whose two sides both end up as the target is a payment from a
   // person to themselves. It has to go, or the settlement totals drift.
+  // Report each side's *current* name. settlements.from_player_name is captured
+  // when the settlement is created and goes stale on rename, so showing it here
+  // makes the preview disagree with the merge it is describing.
   const { rows: selfSettlements } = await client.query(
-    `SELECT id, from_player_name, to_player_name, amount, date
-       FROM settlements
-      WHERE from_player_id = ANY($1::text[]) AND to_player_id = ANY($1::text[])
-      ORDER BY date DESC`,
+    `SELECT s.id,
+            COALESCE(pf.name, s.from_player_name) AS from_name,
+            COALESCE(pt.name, s.to_player_name)   AS to_name,
+            s.amount, s.date
+       FROM settlements s
+       LEFT JOIN players pf ON pf.id = s.from_player_id
+       LEFT JOIN players pt ON pt.id = s.to_player_id
+      WHERE s.from_player_id = ANY($1::text[]) AND s.to_player_id = ANY($1::text[])
+      ORDER BY s.date DESC`,
     [allIds]
   );
 
@@ -119,8 +127,8 @@ async function planMerge(client, sourceIds, targetId) {
     })),
     selfSettlements: selfSettlements.map((s) => ({
       id: s.id,
-      from: s.from_player_name,
-      to: s.to_player_name,
+      from: s.from_name,
+      to: s.to_name,
       amount: parseFloat(s.amount),
       date: s.date
     })),
@@ -192,8 +200,12 @@ async function mergePlayers(client, { sourceIds, targetId, newName }) {
     `UPDATE settlements SET to_player_id = $1 WHERE to_player_id = ANY($2::text[])`,
     [targetId, sourceIds]
   );
+  // Scoped to the target: an unqualified `from_player_id = to_player_id` would
+  // also delete unrelated self-referential rows that this merge did not create.
   const dropped = await client.query(
-    `DELETE FROM settlements WHERE from_player_id = to_player_id`
+    `DELETE FROM settlements
+      WHERE from_player_id = $1 AND to_player_id = $1`,
+    [targetId]
   );
 
   // 4. Keep an email if the target lacks one but a source has it.
