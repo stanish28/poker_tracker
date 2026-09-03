@@ -41,7 +41,14 @@ router.post('/login', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user[0].id, username: user[0].username, email: user[0].email }
+      user: {
+        id: user[0].id,
+        username: user[0].username,
+        email: user[0].email,
+        // Must match what /auth/verify reports: the client stores this response
+        // directly, so omitting it leaves admin-only UI hidden until a reload.
+        isAdmin: await isAdminUser(user[0].id)
+      }
     });
   } catch (error) {
     console.error('Login error:', error);
