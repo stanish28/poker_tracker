@@ -3,6 +3,40 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  /** Set by the server for the ADMIN_USERNAME account; gates admin-only UI. */
+  isAdmin?: boolean;
+}
+
+export interface MergeCollision {
+  gameId: string;
+  date: string;
+  rowCount: number;
+  combinedBuyin: number;
+  combinedCashout: number;
+}
+
+export interface MergeSelfSettlement {
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+  date: string;
+}
+
+export interface MergePreview {
+  success: boolean;
+  target: { id: string; name: string; email: string | null };
+  sources: Array<{ id: string; name: string; total_games: number }>;
+  gameRowsMoving: number;
+  settlementsMoving: number;
+  collisions: MergeCollision[];
+  selfSettlements: MergeSelfSettlement[];
+  resultingTotals: {
+    total_games: number;
+    total_buyins: number;
+    total_cashouts: number;
+    net_profit: number;
+  };
 }
 
 export interface AuthResponse {

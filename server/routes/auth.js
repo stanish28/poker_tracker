@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { queryDatabase } = require('../db');
-const { JWT_SECRET } = require('../middleware/auth');
+const { JWT_SECRET, isAdminUser } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -72,7 +72,14 @@ router.get('/verify', async (req, res) => {
     
     res.json({
       valid: true,
-      user: { id: user[0].id, username: user[0].username, email: user[0].email }
+      user: {
+        id: user[0].id,
+        username: user[0].username,
+        email: user[0].email,
+        // Drives whether the client offers admin-only actions such as merging
+        // players. The server re-checks on every admin route regardless.
+        isAdmin: await isAdminUser(user[0].id)
+      }
     });
   } catch (error) {
     console.error('Token verification error:', error);

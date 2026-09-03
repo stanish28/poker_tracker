@@ -171,6 +171,8 @@ directly in the database.
 - `PUT /api/players/:id` - Update player
 - `DELETE /api/players/:id` - Delete player
 - `GET /api/players/:id/stats` - Get player statistics
+- `POST /api/players/merge/preview` - Preview a duplicate merge (admin only; read-only)
+- `POST /api/players/merge` - Merge duplicate players into one (admin only; irreversible)
 
 ### Games
 - `GET /api/games` - Get all games
@@ -196,6 +198,36 @@ directly in the database.
 
 ### Health Check
 - `GET /api/health` - Health check endpoint
+
+## 👤 Administrator account
+
+A single account, named by the `ADMIN_USERNAME` environment variable, may merge
+duplicate player records. `ADMIN_USERNAME` must match a `users.username` value
+exactly.
+
+While `ADMIN_USERNAME` is unset, merging is disabled for everyone and the Merge
+button does not appear. Admin status is resolved from the database on every
+request rather than carried in the JWT, so revoking it takes effect immediately
+without invalidating anyone's session.
+
+### Merging duplicate players
+
+Ledger imports create a new player whenever a site nickname does not match an
+existing name, so the same person accumulates records ("Soni" and "Soni03").
+Merging folds duplicates into one record and gives the result a chosen name.
+
+The merge is irreversible and runs in a single transaction. It:
+
+- moves the duplicates' game rows and settlements onto the kept player;
+- combines rows when several of the merged players appear in the same game,
+  summing buy-ins and cash-outs;
+- deletes settlements between merged players, which would otherwise become
+  payments from a person to themselves;
+- inherits an email address if the kept player lacks one;
+- recalculates the kept player's statistics.
+
+Preview first: `POST /api/players/merge/preview` reports exactly what would
+change and writes nothing.
 
 ## 🔒 Security Features
 

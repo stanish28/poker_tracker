@@ -11,7 +11,8 @@ import {
   Settlement,
   CreateSettlementRequest,
   SettlementStats,
-  PlayerDebts
+  PlayerDebts,
+  MergePreview
 } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5001/api' : '/api');
@@ -454,6 +455,26 @@ class ApiService {
     } finally {
       URL.revokeObjectURL(url);
     }
+  }
+
+  // --- Admin: merging duplicate players -------------------------------------
+
+  async previewPlayerMerge(sourceIds: string[], targetId: string): Promise<MergePreview> {
+    return this.request<MergePreview>('/players/merge/preview', {
+      method: 'POST',
+      body: JSON.stringify({ sourceIds, targetId }),
+    });
+  }
+
+  async mergePlayers(
+    sourceIds: string[],
+    targetId: string,
+    newName: string
+  ): Promise<{ success: boolean; player: Player; gamesCombined: number; settlementsDropped: number }> {
+    return this.request('/players/merge', {
+      method: 'POST',
+      body: JSON.stringify({ sourceIds, targetId, newName }),
+    });
   }
 }
 

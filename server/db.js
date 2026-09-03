@@ -12,9 +12,17 @@ let dbPool = null;
 async function getDbPool() {
   if (!dbPool) {
     try {
+      const connectionString = process.env.DATABASE_URL;
+
+      // Hosted Postgres (Neon, Supabase, RDS) requires TLS; a local server
+      // generally is not built with it and refuses the connection outright.
+      // Detect localhost rather than forcing SSL on, so `npm run dev` can talk
+      // to a local database.
+      const isLocal = /@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(connectionString || '');
+
       dbPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
+        connectionString,
+        ssl: isLocal ? false : { rejectUnauthorized: false }
       });
       
       // Initialize database tables if they don't exist
@@ -99,9 +107,39 @@ async function queryDatabase(sql, params = []) {
   }
 }
 
+
+/**
+ * Run `fn` inside a single transaction on one pooled client.
+ *
+ * queryDatabase() checks out and releases a client per call, so BEGIN/COMMIT
+ * issued through it would land on different connections. Multi-statement work
+ * that must be atomic -- merging players, for instance -- has to run here.
+ *
+ * The client is handed to `fn` raw: its query() throws on error rather than
+ * returning an error object, so a failed statement aborts the transaction
+ * instead of being silently skipped.
+ */
+async function withTransaction(fn) {
+  const pool = await getDbPool();
+  if (!pool) throw new Error('Database unavailable');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 /** Whether the pool has been created yet; surfaced by the health endpoint. */
 function isPoolReady() {
   return !!dbPool;
 }
 
-module.exports = { getDbPool, initializeDatabase, queryDatabase, isPoolReady };
+module.exports = { getDbPool, initializeDatabase, queryDatabase, withTransaction, isPoolReady };

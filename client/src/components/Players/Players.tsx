@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, Search, X, RefreshCw, LineChart, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Edit2, Trash2, DollarSign, TrendingUp, TrendingDown, Search, X, RefreshCw, LineChart, ChevronDown, ChevronUp, GitMerge } from 'lucide-react';
 import { apiService } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import MergePlayersModal from './MergePlayersModal';
 import ExportButton from '../Layout/ExportButton';
 import { useToast } from '../../contexts/ToastContext';
 import { Player } from '../../types';
@@ -28,6 +30,8 @@ const Players: React.FC = () => {
     settlements_count: number;
   }>>({});
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [isMergeOpen, setIsMergeOpen] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchPlayers();
@@ -259,6 +263,16 @@ const Players: React.FC = () => {
             <RefreshCw className={`h-4 w-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} />
             {isRecalculating ? 'Recalculating...' : 'Sync Stats'}
           </button>
+          {user?.isAdmin && (
+            <button
+              onClick={() => setIsMergeOpen(true)}
+              className="btn btn-secondary btn-md w-full sm:w-auto"
+              title="Combine duplicate player records into one"
+            >
+              <GitMerge className="h-4 w-4 mr-2" />
+              Merge
+            </button>
+          )}
           <button
             onClick={handleCreatePlayer}
             className="btn btn-primary btn-md w-full sm:w-auto"
@@ -502,6 +516,14 @@ const Players: React.FC = () => {
       )}
 
       {/* Player Modal */}
+      {isMergeOpen && (
+        <MergePlayersModal
+          players={players}
+          onClose={() => setIsMergeOpen(false)}
+          onMerged={fetchPlayers}
+        />
+      )}
+
       {isModalOpen && (
         <PlayerModal
           player={editingPlayer}

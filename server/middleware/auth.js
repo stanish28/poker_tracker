@@ -6,6 +6,7 @@
 // default -- opting out has to be deliberate.
 // ---------------------------------------------------------------------------
 const jwt = require('jsonwebtoken');
+const { queryDatabase } = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -36,4 +37,41 @@ const authGate = (req, res, next) => {
   }
 };
 
-module.exports = { authGate, JWT_SECRET, PUBLIC_PATHS };
+
+// ---------------------------------------------------------------------------
+// Administrator gate
+//
+// Destructive, irreversible operations (merging players) are restricted to a
+// single account named by ADMIN_USERNAME. Identity is resolved from the
+// database on each call rather than trusted from the token, so revoking admin
+// is a matter of changing the env var -- no need to invalidate issued tokens.
+//
+// Unset ADMIN_USERNAME disables these routes entirely, which is the safe
+// default: no configuration means no one can merge.
+// ---------------------------------------------------------------------------
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+
+async function isAdminUser(userId) {
+  if (!ADMIN_USERNAME || !userId) return false;
+  const rows = await queryDatabase('SELECT username FROM users WHERE id = $1', [userId]);
+  return Array.isArray(rows) && rows.length > 0 && rows[0].username === ADMIN_USERNAME;
+}
+
+const requireAdmin = async (req, res, next) => {
+  if (!ADMIN_USERNAME) {
+    return res.status(403).json({
+      error: 'Administrator actions are disabled because ADMIN_USERNAME is not configured.'
+    });
+  }
+  try {
+    if (!(await isAdminUser(req.user && req.user.userId))) {
+      return res.status(403).json({ error: 'Administrator access required' });
+    }
+    next();
+  } catch (error) {
+    console.error('Admin check failed:', error);
+    return res.status(500).json({ error: 'Could not verify administrator access' });
+  }
+};
+
+module.exports = { authGate, requireAdmin, isAdminUser, JWT_SECRET, PUBLIC_PATHS };

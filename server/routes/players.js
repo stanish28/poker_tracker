@@ -1,7 +1,80 @@
 const express = require('express');
-const { queryDatabase } = require('../db');
+const { queryDatabase, withTransaction } = require('../db');
+const { requireAdmin } = require('../middleware/auth');
+const { planMerge, mergePlayers, loadParticipants } = require('../utils/mergePlayers');
 
 const router = express.Router();
+
+/**
+ * Validate a merge request body. Returns an error string, or null when usable.
+ */
+function validateMergeBody({ sourceIds, targetId, newName }, { requireName = false } = {}) {
+  if (!Array.isArray(sourceIds) || sourceIds.length === 0) {
+    return 'At least one player to merge from is required';
+  }
+  if (!targetId) return 'A player to merge into is required';
+  if (sourceIds.includes(targetId)) {
+    return 'A player cannot be merged into itself';
+  }
+  if (requireName && (typeof newName !== 'string' || !newName.trim())) {
+    return 'The merged player needs a name';
+  }
+  return null;
+}
+
+// Merge routes are declared before the '/:id' handlers below so that '/merge'
+// is never captured as a player id.
+
+/** Preview a merge: reports exactly what would change, and writes nothing. */
+router.post('/merge/preview', requireAdmin, async (req, res) => {
+  const problem = validateMergeBody(req.body);
+  if (problem) return res.status(400).json({ error: problem });
+
+  const { sourceIds, targetId } = req.body;
+
+  try {
+    // planMerge issues only SELECTs, so this transaction reads a consistent
+    // snapshot and commits without having written anything.
+    const result = await withTransaction(async (client) => {
+      const { target, sources } = await loadParticipants(client, sourceIds, targetId);
+      const plan = await planMerge(client, sourceIds, targetId);
+      return { target, sources, plan };
+    });
+
+    res.json({
+      success: true,
+      target: { id: result.target.id, name: result.target.name, email: result.target.email },
+      sources: result.sources.map((s) => ({ id: s.id, name: s.name, total_games: s.total_games })),
+      ...result.plan
+    });
+  } catch (error) {
+    console.error('Error previewing player merge:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to preview merge' });
+  }
+});
+
+/** Perform the merge. Atomic: either every step lands or none do. */
+router.post('/merge', requireAdmin, async (req, res) => {
+  const problem = validateMergeBody(req.body, { requireName: true });
+  if (problem) return res.status(400).json({ error: problem });
+
+  const { sourceIds, targetId, newName } = req.body;
+
+  try {
+    const result = await withTransaction((client) =>
+      mergePlayers(client, {
+        sourceIds,
+        targetId,
+        newName: (newName || '').trim()
+      })
+    );
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Error merging players:', error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to merge players' });
+  }
+});
 
 // Update player endpoint
 router.put('/:id', async (req, res) => {
