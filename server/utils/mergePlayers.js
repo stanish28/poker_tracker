@@ -111,9 +111,26 @@ async function planMerge(client, sourceIds, targetId) {
     [allIds]
   );
 
+  // The players list shows net profit adjusted for settlements, not raw game
+  // profit, so the preview has to report the same figure or it appears to
+  // disagree with the page the merge was started from.
+  //
+  // Only settlements with exactly one side inside the merged group matter:
+  // those wholly inside contribute +x to one member and -x to another, cancel
+  // out, and are deleted by the merge anyway.
+  const { rows: impact } = await client.query(
+    `SELECT COALESCE(SUM(
+              CASE WHEN from_player_id = ANY($1::text[]) THEN amount
+                   ELSE -amount END), 0) AS settlement_impact
+       FROM settlements
+      WHERE (from_player_id = ANY($1::text[])) <> (to_player_id = ANY($1::text[]))`,
+    [allIds]
+  );
+
   const t = totals[0] || { total_buyins: 0, total_cashouts: 0, total_games: 0 };
   const buyins = parseFloat(t.total_buyins);
   const cashouts = parseFloat(t.total_cashouts);
+  const settlementImpact = parseFloat(impact[0]?.settlement_impact ?? 0);
 
   return {
     gameRowsMoving: moving[0]?.count ?? 0,
@@ -136,7 +153,10 @@ async function planMerge(client, sourceIds, targetId) {
       total_games: t.total_games,
       total_buyins: buyins,
       total_cashouts: cashouts,
-      net_profit: cashouts - buyins
+      game_net_profit: cashouts - buyins,
+      settlement_impact: settlementImpact,
+      // Matches what the players list displays for the merged record.
+      net_profit: cashouts - buyins + settlementImpact
     }
   };
 }

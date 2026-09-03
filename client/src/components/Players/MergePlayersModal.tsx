@@ -234,18 +234,31 @@ const MergePlayersModal: React.FC<MergePlayersModalProps> = ({ players, onClose,
 
               <div className="bg-gray-50 rounded-lg p-3">
                 <div className="font-medium text-gray-900 mb-1">Resulting totals</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-gray-700">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-gray-700">
                   <div>{preview.resultingTotals.total_games} games</div>
                   <div>{currency(preview.resultingTotals.total_buyins)} in</div>
                   <div>{currency(preview.resultingTotals.total_cashouts)} out</div>
-                  <div
-                    className={
-                      preview.resultingTotals.net_profit >= 0
-                        ? 'text-green-700'
-                        : 'text-red-700'
-                    }
-                  >
-                    {currency(preview.resultingTotals.net_profit)} net
+                </div>
+                <div className="mt-2 pt-2 border-t space-y-1 text-gray-700">
+                  <div className="flex justify-between">
+                    <span>Game profit</span>
+                    <span>{currency(preview.resultingTotals.game_net_profit)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Settlements</span>
+                    <span>{currency(preview.resultingTotals.settlement_impact)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium">
+                    <span>Net profit (as shown on the players list)</span>
+                    <span
+                      className={
+                        preview.resultingTotals.net_profit >= 0
+                          ? 'text-green-700'
+                          : 'text-red-700'
+                      }
+                    >
+                      {currency(preview.resultingTotals.net_profit)}
+                    </span>
                   </div>
                 </div>
               </div>

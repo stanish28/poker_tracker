@@ -35,6 +35,8 @@ export interface MergePreview {
     total_games: number;
     total_buyins: number;
     total_cashouts: number;
+    game_net_profit: number;
+    settlement_impact: number;
     net_profit: number;
   };
 }
