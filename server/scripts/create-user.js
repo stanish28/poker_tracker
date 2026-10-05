@@ -25,6 +25,12 @@
  *   printf 'admin\nadmin@example.com\n%s\n' "$PW" |
  *     node server/scripts/create-user.js --stdin
  *
+ * To change an existing account's password instead of creating one, pass
+ * --reset-password. It prompts for the username and new password and updates
+ * that row in place:
+ *
+ *   node server/scripts/create-user.js --reset-password
+ *
  * To make the new account the administrator that may merge players, set
  * ADMIN_USERNAME to its username and redeploy.
  */
@@ -39,6 +45,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const BCRYPT_ROUNDS = 12; // matches the cost of the existing account hashes
 const PRINT_SQL = process.argv.includes('--print-sql');
 const FROM_STDIN = process.argv.includes('--stdin');
+const RESET_PASSWORD = process.argv.includes('--reset-password');
 
 /** Read every line of piped stdin, for --stdin mode. */
 function readStdin() {
@@ -123,7 +130,76 @@ function validate(username, email, password, confirmation) {
   return null;
 }
 
+/** Change an existing account's password, leaving the rest of the row alone. */
+async function resetPassword() {
+  let username;
+  let password;
+  let confirmation;
+
+  if (FROM_STDIN) {
+    const [u, p] = await readStdin();
+    username = (u || '').trim();
+    password = p === undefined ? '' : p.replace(/\r$/, '');
+    confirmation = password;
+  } else {
+    console.log('\nReset a Poker Tracker password.\n');
+    username = await ask('Username: ');
+    password = await askSecret('New password (not shown): ');
+    confirmation = await askSecret('Confirm new password: ');
+  }
+
+  if (!username) {
+    console.error('\nA username is required.');
+    process.exit(1);
+  }
+  if (password.length < 12) {
+    console.error('\nPassword must be at least 12 characters.');
+    process.exit(1);
+  }
+  if (password !== confirmation) {
+    console.error('\nThe passwords do not match.');
+    process.exit(1);
+  }
+
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+  if (PRINT_SQL || !process.env.DATABASE_URL) {
+    if (!process.env.DATABASE_URL && !PRINT_SQL) {
+      console.log('\nDATABASE_URL is not set, so nothing was written. Run this SQL instead:');
+    } else {
+      console.log('\nRun this SQL against your database:');
+    }
+    console.log(
+      `\nUPDATE users SET password_hash = '${passwordHash}', updated_at = NOW()\n` +
+      `WHERE username = '${username.replace(/'/g, "''")}';\n`
+    );
+    return;
+  }
+
+  const { queryDatabase } = require('../db');
+  const result = await queryDatabase(
+    `UPDATE users SET password_hash = $1, updated_at = NOW()
+      WHERE username = $2
+      RETURNING username`,
+    [passwordHash, username]
+  );
+
+  if (!result || result.error) {
+    console.error(`\nCould not update the password: ${result?.message || 'unknown database error'}`);
+    process.exit(1);
+  }
+  if (!result.rows || result.rows.length === 0) {
+    console.error(`\nNo account named "${username}". Nothing was changed.`);
+    process.exit(1);
+  }
+
+  console.log(`\nPassword updated for "${result.rows[0].username}".\n`);
+  process.exit(0);
+}
+
 async function main() {
+  if (RESET_PASSWORD) return resetPassword();
+
   let username;
   let email;
   let password;

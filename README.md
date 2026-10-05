@@ -221,6 +221,14 @@ string onto your machine:
 node server/scripts/create-user.js --print-sql
 ```
 
+To change an existing account's password, pass `--reset-password`. It prompts
+for the username and new password and prints (or runs) a complete `UPDATE`, so
+there is no hash to copy out of a larger statement by hand:
+
+```bash
+node server/scripts/create-user.js --reset-password --print-sql
+```
+
 To skip the interactive prompt, pass `--stdin` and supply three lines. Use your
 shell's own hidden read so the password stays out of history:
 
